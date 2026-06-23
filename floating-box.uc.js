@@ -36,23 +36,35 @@
             return;
         }
 
-        const nodes = groupData.tabs.map(tab => vs.getSplitNodeFromTab(tab));
-        if (!nodes[0] || !nodes[1]) {
+        const n = groupData.tabs.map(tab => vs.getSplitNodeFromTab(tab));
+        if (!n[0] || !n[1]) {
             console.warn('[BetterSplitView] swapSplitPanes: could not get split nodes');
             return;
         }
 
-        // Swap dans l'arbre interne
-        vs.swapNodes(nodes[0], nodes[1]);
+        const count = n.length;
+
+        if (count === 2) {
+            // ── Simple swap gauche ↔ droite ──
+            vs.swapNodes(n[0], n[1]);
+        } else if (count === 3) {
+            // ── Swap premier ↔ dernier ──
+            vs.swapNodes(n[0], n[2]);
+        } else if (count >= 4) {
+            // ── Rotation horaire (grid 2×2 ou +) ──
+            // HG↔BG, puis BG(content)↔BD, puis BD↔HD
+            vs.swapNodes(n[0], n[1]);
+            vs.swapNodes(n[1], n[Math.min(3, count - 1)]);
+            vs.swapNodes(n[2], n[Math.min(3, count - 1)]);
+        }
 
         // Forcer le reflow visuel en switchant brièvement de tab
-        // (swapNodes modifie l'arbre mais ne déclenche pas le rendu)
         const originalTab = gBrowser.selectedTab;
         const otherTab = groupData.tabs.find(t => t !== originalTab) || groupData.tabs[1];
         gBrowser.selectedTab = otherTab;
         setTimeout(() => {
             gBrowser.selectedTab = originalTab;
-            console.log('[BetterSplitView] Swap effectué');
+            console.log(`[BetterSplitView] Swap effectué (${count} tabs)`);
         }, 50);
     }
 
