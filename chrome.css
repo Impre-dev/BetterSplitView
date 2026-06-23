@@ -40,8 +40,8 @@
 #tabbrowser-tabpanels[zen-split-view="true"]
 .zen-view-splitter-header-container {
   top: auto !important;
-  bottom: 50px !important;
-  right: 50px !important;
+  bottom: 36px !important;
+  right: 27.5px !important;
   left: auto !important;
   transform: none !important;
 }
@@ -60,7 +60,7 @@
   padding: 4px 8px !important;
   background: rgba(40, 40, 40, 0.85) !important;
   backdrop-filter: blur(10px);
-  border-radius: 8px !important;
+  border-radius: 4px !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
@@ -77,7 +77,13 @@
 
 /* Bouton unique : clic gauche = unsplit, clic droit = swap */
 .zen-split-control-button {
+  -moz-appearance: none !important;
+  appearance: none !important;
   list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="rgb(255,255,255)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="m5.25 14.25h-3.5v-3.5m12.5 0v3.5h-3.5m0-12.5h3.5v3.5m-12.5 0v-3.5h3.5"/></svg>');
+  padding: 8px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  cursor: pointer !important;
 }
 
 .zen-split-control-button .toolbarbutton-icon {
