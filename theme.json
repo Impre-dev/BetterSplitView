@@ -1,0 +1,28 @@
+{
+  "id": "BetterSplitView",
+  "name": "Better Split View",
+  "description": "Floating split controls (swap + close) and split bookmarks via HTML triggers",
+  "author": "Impre",
+  "version": "1.0.0",
+  "style": { "chrome": "chrome.css" },
+  "js": true,
+  "scripts": {
+    "floating-box.uc.js": {
+      "name": "Floating Box",
+      "description": "Repositioned split header + swap button injection",
+      "include": ["chrome://browser/content/browser.xhtml"]
+    },
+    "split-bookmarks.uc.js": {
+      "name": "Split Bookmarks Engine",
+      "description": "TabsProgressListener interception + Canvas favicons + triggerSplit + API",
+      "include": ["chrome://browser/content/browser.xhtml"]
+    },
+    "creator-panel.uc.js": {
+      "name": "Creator Panel UI",
+      "description": "Toolbar button + create/manage split bookmark pairs",
+      "include": ["chrome://browser/content/browser.xhtml"]
+    }
+  },
+  "tags": ["Javascript", "Split View"],
+  "fork": ["zen"]
+}
