@@ -199,23 +199,44 @@
     // ── Toolbar Widget (CustomizableUI) ────────────────────────────────────
 
     function injectToolbarButton() {
-        // Nettoyer un éventuel widget de test précédent
+        // 1. Nettoyer les orphelins DOM des versions précédentes (appendChild direct)
+        document.querySelectorAll('#zensplit-creator-btn').forEach(el => {
+            // Ne pas supprimer si c'est dans le palette/overflow de CustomizableUI
+            const parent = el.parentElement;
+            if (parent && parent.id !== 'widget-overflow-list') {
+                el.remove();
+            }
+        });
+
+        // 2. Nettoyer un éventuel widget de test
         try { CustomizableUI.destroyWidget('test-btn'); } catch (e) {}
 
-        // Éviter le double-enregistrement
+        // 3. Enregistrer le widget avec type:'custom' + onBuild pour contrôler le DOM
         try {
-            // createWidget lance une erreur si déjà enregistré — on l'ignore
             CustomizableUI.createWidget({
                 id: 'zensplit-creator-btn',
-                type: 'button',
-                label: 'Split Bookmark',
-                tooltiptext: 'Créer / gérer un split bookmark',
-                // Pas de defaultArea → le bouton démarre dans la palette
-                // du menu "Personnaliser", l'utilisateur le place où il veut
-                onCommand: () => toggleMainPanel(),
+                type: 'custom',
+                // Pas de defaultArea → démarre dans la palette du menu Personnaliser
+                onBuild: (doc) => {
+                    const btn = doc.createXULElement('toolbarbutton');
+                    btn.id = 'zensplit-creator-btn';
+                    btn.className = 'toolbarbutton-1 chromeclass-toolbar-additional';
+                    btn.setAttribute('label', 'Split Bookmark');
+                    btn.setAttribute('tooltiptext', 'Créer / gérer un split bookmark');
+
+                    // Icône via <image> avec src = data URI SVG
+                    const icon = doc.createXULElement('image');
+                    icon.className = 'toolbarbutton-icon';
+                    icon.setAttribute('src', SVG_ICON);
+                    icon.style.cssText = 'width: 16px; height: 16px;';
+                    btn.appendChild(icon);
+
+                    btn.addEventListener('command', () => toggleMainPanel());
+                    return btn;
+                },
             });
 
-            console.log('[BetterSplitView] Toolbar widget registered via CustomizableUI');
+            console.log('[BetterSplitView] Toolbar widget registered (type:custom, onBuild)');
         } catch (e) {
             // Widget déjà enregistré (re-init) — c'est OK
             console.log('[BetterSplitView] Toolbar widget already registered');
