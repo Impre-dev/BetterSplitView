@@ -48,8 +48,9 @@
             // ── Simple swap gauche ↔ droite ──
             vs.swapNodes(n[0], n[1]);
         } else if (count === 3) {
-            // ── Swap premier ↔ dernier ──
-            vs.swapNodes(n[0], n[2]);
+            // ── Rotation droite: [A,B,C] → [C,A,B] ──
+            vs.swapNodes(n[1], n[2]); // B↔C → [A,C,B]
+            vs.swapNodes(n[0], n[2]); // A↔C(pos1) → [C,A,B]
         } else if (count >= 4) {
             // ── Rotation horaire (grid 2×2 ou +) ──
             // HG↔BG, puis BG(content)↔BD, puis BD↔HD
