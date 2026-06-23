@@ -22,28 +22,442 @@
     //  Dépendances : window.gZenViewSplitter (pour pre-remplissage)
     // ═══════════════════════════════════════════════════════════════════════
 
-    const MOD_ID = 'BetterSplitView';
+    const SVG_ICON = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="rgb(255,255,255)" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg>`;
 
-    // ── 4A: Toolbar button ──────────────────────────────────────────────────
+    let toolbarButton = null;
+    let mainPanel = null;
+    let managePanel = null;
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    function getAPI() {
+        return window.__betterSplitView;
+    }
+
+    function createXUL(tag, attrs = {}) {
+        const el = document.createXULElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+            el.setAttribute(k, v);
+        }
+        return el;
+    }
+
+    function createHTML(tag, attrs = {}) {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+            if (k === 'style') { el.style.cssText = v; continue; }
+            if (k === 'text') { el.textContent = v; continue; }
+            if (k.startsWith('on') && typeof v === 'function') {
+                el.addEventListener(k.slice(2).toLowerCase(), v);
+                continue;
+            }
+            el.setAttribute(k, v);
+        }
+        return el;
+    }
+
+    // ── CSS Injection ──────────────────────────────────────────────────────
+
+    function injectStyles() {
+        if (document.getElementById('zensplit-creator-styles')) return;
+        const style = createHTML('style', { id: 'zensplit-creator-styles' });
+        style.textContent = `
+            .zensplit-panel {
+                width: 340px;
+                padding: 16px;
+                font-family: system-ui, -apple-system, sans-serif;
+                color: var(--zen-colors-text-primary, #e0e0e0);
+                background: var(--zen-colors-background-primary, #1a1a1a);
+            }
+            .zensplit-panel h3 {
+                margin: 0 0 12px 0;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .zensplit-field {
+                margin-bottom: 10px;
+            }
+            .zensplit-field label {
+                display: block;
+                font-size: 12px;
+                margin-bottom: 4px;
+                opacity: 0.8;
+            }
+            .zensplit-field input[type="text"],
+            .zensplit-field input[type="url"] {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 7px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--zen-colors-border, #333);
+                background: var(--zen-colors-background-secondary, #252525);
+                color: inherit;
+                font-size: 13px;
+                outline: none;
+            }
+            .zensplit-field input:focus {
+                border-color: var(--zen-primary-color, #5b8def);
+            }
+            .zensplit-layout-row {
+                display: flex;
+                gap: 16px;
+                margin-bottom: 14px;
+            }
+            .zensplit-layout-row label {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 13px;
+                cursor: pointer;
+            }
+            .zensplit-actions {
+                display: flex;
+                gap: 8px;
+                margin-top: 4px;
+            }
+            .zensplit-btn {
+                flex: 1;
+                padding: 8px 14px;
+                border-radius: 6px;
+                border: none;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+            }
+            .zensplit-btn-primary {
+                background: var(--zen-primary-color, #5b8def);
+                color: white;
+            }
+            .zensplit-btn-primary:hover { opacity: 0.9; }
+            .zensplit-btn-secondary {
+                background: var(--zen-colors-background-tertiary, #333);
+                color: inherit;
+            }
+            .zensplit-btn-secondary:hover { opacity: 0.8; }
+            .zensplit-btn-danger {
+                background: #e05252;
+                color: white;
+                padding: 4px 10px;
+                font-size: 12px;
+                flex: none;
+                border-radius: 5px;
+            }
+            .zensplit-manage-list {
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            .zensplit-manage-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--zen-colors-border, #2a2a2a);
+            }
+            .zensplit-manage-item:last-child { border-bottom: none; }
+            .zensplit-manage-info {
+                flex: 1;
+                min-width: 0;
+            }
+            .zensplit-manage-title {
+                font-size: 13px;
+                font-weight: 500;
+            }
+            .zensplit-manage-urls {
+                font-size: 11px;
+                opacity: 0.6;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .zensplit-prefill-hint {
+                font-size: 11px;
+                opacity: 0.5;
+                margin-top: 2px;
+                font-style: italic;
+            }
+            .zensplit-empty {
+                text-align: center;
+                padding: 20px;
+                opacity: 0.5;
+                font-size: 13px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // ── Toolbar Button ─────────────────────────────────────────────────────
 
     function injectToolbarButton() {
-        // TODO Phase 4A: inject toolbarbutton into #nav-bar with split SVG icon
+        if (document.getElementById('zensplit-creator-btn')) return;
+
+        toolbarButton = createXUL('toolbarbutton', {
+            id: 'zensplit-creator-btn',
+            class: 'toolbarbutton-1 chromeclass-toolbar-additional',
+            label: 'Split Bookmark',
+            tooltiptext: 'Créer / gérer un split bookmark',
+            style: 'list-style-image: url("' + SVG_ICON + '")',
+        });
+
+        toolbarButton.addEventListener('command', toggleMainPanel);
+
+        const navBar = document.getElementById('nav-bar') || document.getElementById('TabsToolbar');
+        if (navBar) {
+            navBar.appendChild(toolbarButton);
+        }
     }
 
-    // ── 4B: Create Panel ────────────────────────────────────────────────────
+    // ── Main Panel (Create) ────────────────────────────────────────────────
 
-    function createPanel() {
-        // TODO Phase 4B: XUL <panel> with XHTML form (name, site1, site2, layout)
+    function toggleMainPanel() {
+        if (!mainPanel) {
+            mainPanel = buildMainPanel();
+            document.getElementById('mainPopupSet')?.appendChild(mainPanel) || document.body.appendChild(mainPanel);
+        }
+        // Pre-fill depuis le split actif
+        preFillFromActiveSplit();
+        // Ouvrir à côté du bouton
+        if (mainPanel.state === 'open') {
+            mainPanel.hidePopup();
+        } else {
+            mainPanel.openPopup(toolbarButton, 'after_end', 0, 0, false, false);
+        }
     }
 
-    function getActiveSplitUrls() {
-        // TODO Phase 4B: read gZenViewSplitter._data[currentView].tabs
+    function buildMainPanel() {
+        const panel = createXUL('panel', {
+            id: 'zensplit-main-panel',
+            type: 'arrow',
+            noautohide: 'false',
+            consumeoutsideclicks: 'true',
+        });
+
+        const container = createHTML('div', { class: 'zensplit-panel' });
+
+        // Titre
+        container.appendChild(createHTML('h3', { text: '✂️ Créer un Split Bookmark' }));
+
+        // Pre-fill hint
+        const hint = createHTML('div', { id: 'zensplit-prefill-hint', class: 'zensplit-prefill-hint', style: 'display:none;' });
+        container.appendChild(hint);
+
+        // Name
+        const nameField = createHTML('div', { class: 'zensplit-field' });
+        nameField.appendChild(createHTML('label', { text: 'Nom', for: 'zensplit-name' }));
+        nameField.appendChild(createHTML('input', { type: 'text', id: 'zensplit-name', placeholder: 'IA Compare' }));
+        container.appendChild(nameField);
+
+        // Site 1
+        const site1Field = createHTML('div', { class: 'zensplit-field' });
+        site1Field.appendChild(createHTML('label', { text: 'Site 1 (gauche)', for: 'zensplit-url1' }));
+        site1Field.appendChild(createHTML('input', { type: 'url', id: 'zensplit-url1', placeholder: 'https://chatgpt.com' }));
+        container.appendChild(site1Field);
+
+        // Site 2
+        const site2Field = createHTML('div', { class: 'zensplit-field' });
+        site2Field.appendChild(createHTML('label', { text: 'Site 2 (droite)', for: 'zensplit-url2' }));
+        site2Field.appendChild(createHTML('input', { type: 'url', id: 'zensplit-url2', placeholder: 'https://claude.ai' }));
+        container.appendChild(site2Field);
+
+        // Layout radio
+        const layoutRow = createHTML('div', { class: 'zensplit-layout-row' });
+        const layoutLabel = createHTML('label');
+        layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep', checked: 'checked' }));
+        layoutLabel.appendChild(document.createTextNode(' ↕ Vertical'));
+        layoutRow.appendChild(layoutLabel);
+
+        const layoutLabel2 = createHTML('label');
+        layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep' }));
+        layoutLabel2.appendChild(document.createTextNode(' ↔ Horizontal'));
+        layoutRow.appendChild(layoutLabel2);
+        container.appendChild(layoutRow);
+
+        // Actions
+        const actions = createHTML('div', { class: 'zensplit-actions' });
+
+        const manageBtn = createHTML('button', {
+            class: 'zensplit-btn zensplit-btn-secondary',
+            text: '📋 Gérer',
+            onclick: () => {
+                mainPanel.hidePopup();
+                openManagePanel();
+            },
+        });
+        actions.appendChild(manageBtn);
+
+        const createBtn = createHTML('button', {
+            class: 'zensplit-btn zensplit-btn-primary',
+            text: '✨ Créer',
+            onclick: handleCreate,
+        });
+        actions.appendChild(createBtn);
+        container.appendChild(actions);
+
+        panel.appendChild(container);
+        return panel;
     }
 
-    // ── 4C: Manage Panel ────────────────────────────────────────────────────
+    function preFillFromActiveSplit() {
+        const api = getAPI();
+        if (!api || !api.getActiveSplitUrls) return;
 
-    function populateManageList() {
-        // TODO Phase 4C: scan splits/ via listSplitPairs(), render list + delete buttons
+        const active = api.getActiveSplitUrls();
+        const hint = document.getElementById('zensplit-prefill-hint');
+        const url1 = document.getElementById('zensplit-url1');
+        const url2 = document.getElementById('zensplit-url2');
+
+        if (active && active.left && active.right) {
+            if (url1) url1.value = active.left;
+            if (url2) url2.value = active.right;
+            if (hint) {
+                hint.textContent = '↩ Pré-rempli depuis le split actif';
+                hint.style.display = 'block';
+            }
+        } else {
+            if (hint) hint.style.display = 'none';
+        }
+    }
+
+    async function handleCreate() {
+        const name = document.getElementById('zensplit-name')?.value?.trim();
+        const url1 = document.getElementById('zensplit-url1')?.value?.trim();
+        const url2 = document.getElementById('zensplit-url2')?.value?.trim();
+        const layoutEl = document.querySelector('input[name="zensplit-layout"]:checked');
+        const layout = layoutEl ? layoutEl.value : 'vsep';
+
+        if (!name || !url1 || !url2) {
+            // Feedback visuel simple
+            const btn = document.querySelector('.zensplit-btn-primary');
+            if (btn) {
+                const orig = btn.textContent;
+                btn.textContent = '⚠️ Remplis tout !';
+                setTimeout(() => { btn.textContent = orig; }, 1500);
+            }
+            return;
+        }
+
+        const api = getAPI();
+        if (!api) {
+            console.error('[BetterSplitView] API not available');
+            return;
+        }
+
+        // Feedback loading
+        const createBtn = document.querySelector('.zensplit-btn-primary');
+        if (createBtn) createBtn.textContent = '⏳ Création...';
+
+        try {
+            await api.createSplitPair(name, url1, url2, { layout });
+            if (createBtn) {
+                createBtn.textContent = '✅ Créé !';
+                setTimeout(() => {
+                    createBtn.textContent = '✨ Créer';
+                    mainPanel?.hidePopup();
+                    // Reset fields
+                    document.getElementById('zensplit-name').value = '';
+                    document.getElementById('zensplit-url1').value = '';
+                    document.getElementById('zensplit-url2').value = '';
+                }, 1000);
+            }
+        } catch (e) {
+            console.error('[BetterSplitView] Create failed', e);
+            if (createBtn) createBtn.textContent = '❌ Erreur';
+            setTimeout(() => { if (createBtn) createBtn.textContent = '✨ Créer'; }, 2000);
+        }
+    }
+
+    // ── Manage Panel ───────────────────────────────────────────────────────
+
+    function openManagePanel() {
+        if (!managePanel) {
+            managePanel = buildManagePanel();
+            document.getElementById('mainPopupSet')?.appendChild(managePanel) || document.body.appendChild(managePanel);
+        }
+        populateManageList();
+        managePanel.openPopup(toolbarButton, 'after_end', 0, 0, false, false);
+    }
+
+    function buildManagePanel() {
+        const panel = createXUL('panel', {
+            id: 'zensplit-manage-panel',
+            type: 'arrow',
+            noautohide: 'false',
+            consumeoutsideclicks: 'true',
+        });
+
+        const container = createHTML('div', { class: 'zensplit-panel' });
+        container.appendChild(createHTML('h3', { text: '📋 Gérer les Split Bookmarks' }));
+
+        const listDiv = createHTML('div', { id: 'zensplit-manage-list', class: 'zensplit-manage-list' });
+        container.appendChild(listDiv);
+
+        const closeBtn = createHTML('button', {
+            class: 'zensplit-btn zensplit-btn-secondary',
+            text: 'Fermer',
+            style: 'margin-top: 10px; width: 100%;',
+            onclick: () => managePanel.hidePopup(),
+        });
+        container.appendChild(closeBtn);
+
+        panel.appendChild(container);
+        return panel;
+    }
+
+    async function populateManageList() {
+        const listDiv = document.getElementById('zensplit-manage-list');
+        if (!listDiv) return;
+
+        const api = getAPI();
+        if (!api) return;
+
+        listDiv.innerHTML = '';
+        listDiv.appendChild(createHTML('div', { class: 'zensplit-empty', text: '⏳ Chargement...' }));
+
+        let pairs;
+        try {
+            pairs = await api.listSplitPairs();
+        } catch (e) {
+            listDiv.innerHTML = '';
+            listDiv.appendChild(createHTML('div', { class: 'zensplit-empty', text: '❌ Erreur de lecture' }));
+            return;
+        }
+
+        listDiv.innerHTML = '';
+
+        if (!pairs || pairs.length === 0) {
+            listDiv.appendChild(createHTML('div', { class: 'zensplit-empty', text: 'Aucun split bookmark pour l\'instant' }));
+            return;
+        }
+
+        for (const pair of pairs) {
+            const item = createHTML('div', { class: 'zensplit-manage-item' });
+
+            const info = createHTML('div', { class: 'zensplit-manage-info' });
+            info.appendChild(createHTML('div', { class: 'zensplit-manage-title', text: pair.title || pair.slug }));
+
+            const urls = pair.left && pair.right ? `${pair.left} | ${pair.right}` : (pair.filename || '');
+            const urlsDiv = createHTML('div', { class: 'zensplit-manage-urls', text: urls });
+            info.appendChild(urlsDiv);
+            item.appendChild(info);
+
+            const delBtn = createHTML('button', {
+                class: 'zensplit-btn-danger',
+                text: '🗑️',
+                title: 'Supprimer',
+                onclick: async () => {
+                    delBtn.textContent = '⏳';
+                    try {
+                        await api.deleteSplitPair(pair.filename);
+                        populateManageList();
+                    } catch (e) {
+                        delBtn.textContent = '❌';
+                        setTimeout(() => { delBtn.textContent = '🗑️'; }, 1500);
+                    }
+                },
+            });
+            item.appendChild(delBtn);
+
+            listDiv.appendChild(item);
+        }
     }
 
     // ── Init ───────────────────────────────────────────────────────────────
@@ -53,6 +467,7 @@
         if (!window.gBrowser || !gBrowser.tabContainer) { setTimeout(init, 500); return; }
         window.__betterSplitViewPanelInit = true;
 
+        injectStyles();
         injectToolbarButton();
 
         console.log('[BetterSplitView] Creator Panel initialized');

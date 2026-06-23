@@ -27,56 +27,372 @@
     const MOD_ID = 'BetterSplitView';
     const SPLITS_DIR = PathUtils.join(PathUtils.profileDir, 'chrome', 'sine-mods', MOD_ID, 'splits');
 
-    // ── 3A: TabsProgressListener ────────────────────────────────────────────
+    // ── Utils ──────────────────────────────────────────────────────────────
 
-    // Progress listener — catches navigation to splits/*.html triggers
+    /** Convertit un file:/// URL en chemin OS lisible par IOUtils */
+    function fileUrlToPath(fileUrl) {
+        // file:///O:/Programmation/.../splits/ia-compare.html → O:\Programmation\...\splits\ia-compare.html
+        let path = fileUrl.replace(/^file:[\/]+/, '');
+        // Décoder les %20 et autres séquences
+        try {
+            path = decodeURIComponent(path);
+        } catch (e) { /* ignore si déjà décodé */ }
+        // Normaliser les séparateurs
+        path = path.replace(/\//g, '\\');
+        return path;
+    }
+
+    /** Convertit un chemin OS en file:/// URL */
+    function pathToFileUrl(osPath) {
+        let url = osPath.replace(/\\/g, '/');
+        // Ajouter le triple slash si ça commence par une lettre de drive
+        if (/^[A-Za-z]:/.test(url)) {
+            url = 'file:///' + url;
+        }
+        return url;
+    }
+
+    /** Slugify un nom de bookmark en nom de fichier safe */
+    function slugify(name) {
+        return name.toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'split';
+    }
+
+    /** S'assurer que le dossier splits/ existe */
+    async function ensureSplitsDir() {
+        try {
+            await IOUtils.exists(SPLITS_DIR);
+        } catch (e) {
+            // N'existe pas → créer
+        }
+        try {
+            await IOUtils.makeDirectory(SPLITS_DIR, { recursive: true, createParents: true });
+        } catch (e) {
+            // Peut déjà exister → ignoré
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 3A — TabsProgressListener + handleSplitNavigation + triggerSplit
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Anti-reentrance : évite de traiter le même fichier HTML plusieurs fois
+    const _processing = new WeakSet();
+
     const splitDetector = {
         onLocationChange(browser, webProgress, request, location, flags) {
-            // TODO Phase 3A: detect splits/*.html → browser.stop() → handleSplitNavigation()
+            // Ignorer les flags qui ne sont pas des vraies navigations
+            if (flags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) return;
+
+            const url = location.spec;
+
+            // Détecter les fichiers HTML dans splits/
+            if (!url.includes('/splits/') || !url.endsWith('.html')) return;
+
+            // Anti-reentrance
+            if (_processing.has(browser)) return;
+            _processing.add(browser);
+
+            // Stopper le chargement immédiatement = zéro flash visible
+            try { browser.stop(); } catch (e) {}
+
+            handleSplitNavigation(url, browser);
         },
         QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
     };
 
-    function handleSplitNavigation(url, browser) {
-        // TODO Phase 3A: read HTML file, parse #zensplit JSON, close tab, triggerSplit()
+    async function handleSplitNavigation(htmlUrl, browser) {
+        try {
+            // 1. Récupérer le tab associé au browser
+            const tab = gBrowser.getTabForBrowser(browser);
+            if (!tab) {
+                _processing.delete(browser);
+                return;
+            }
+
+            // 2. Lire le fichier HTML
+            const filePath = fileUrlToPath(htmlUrl);
+            let htmlContent;
+            try {
+                htmlContent = await IOUtils.readUTF8(filePath);
+            } catch (e) {
+                console.warn('[BetterSplitView] Cannot read', htmlUrl, e);
+                _processing.delete(browser);
+                return;
+            }
+
+            // 3. Extraire la config JSON depuis le script id="zensplit"
+            const match = htmlContent.match(/id="zensplit">\s*([\s\S]*?)<\/script>/);
+            if (!match) {
+                console.warn('[BetterSplitView] No zensplit config found in', htmlUrl);
+                _processing.delete(browser);
+                return;
+            }
+
+            let config;
+            try {
+                config = JSON.parse(match[1].trim());
+            } catch (e) {
+                console.warn('[BetterSplitView] Invalid JSON in zensplit config', e);
+                _processing.delete(browser);
+                return;
+            }
+
+            // 4. Fermer le tab intermédiaire (celui qui a chargé le HTML)
+            gBrowser.removeTab(tab);
+
+            // 5. Déclencher le split avec les 2 URLs
+            await triggerSplit(config.left, config.right, config.layout || 'vsep');
+
+        } catch (e) {
+            console.error('[BetterSplitView] handleSplitNavigation error', e);
+        } finally {
+            _processing.delete(browser);
+        }
     }
 
-    function triggerSplit(leftUrl, rightUrl, layout) {
-        // TODO Phase 3A: addTrustedTab × 2 → splitTabs([tab1, tab2], layout)
+    async function triggerSplit(leftUrl, rightUrl, layout = 'vsep') {
+        const vs = window.gZenViewSplitter;
+        if (!vs) {
+            console.error('[BetterSplitView] gZenViewSplitter not available');
+            return;
+        }
+
+        // Ouvrir les 2 tabs
+        const tab1 = gBrowser.addTrustedTab(leftUrl);
+        const tab2 = gBrowser.addTrustedTab(rightUrl);
+
+        // Attendre que les tabs soient initialisés
+        await new Promise(r => setTimeout(r, 300));
+
+        // Déclencher le split
+        vs.splitTabs([tab1, tab2], layout);
+
+        console.log(`[BetterSplitView] Split: ${leftUrl} | ${rightUrl} (${layout})`);
     }
 
-    // ── 3B: File generation + Canvas favicons ──────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 3B — Canvas favicons + generateSplitHTML + CRUD
+    // ═══════════════════════════════════════════════════════════════════════
 
-    async function createCompositeFavicon(leftUrl, rightUrl, outputPath) {
-        // TODO Phase 3B: Canvas 32×16, draw 2 favicons side-by-side → PNG
+    function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = (e) => reject(new Error(`Failed to load: ${src}`));
+            img.src = src;
+        });
+    }
+
+    async function createCompositeFavicon(leftIconPath, rightIconPath, outputPath) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+
+        // Fond transparent
+        ctx.clearRect(0, 0, 32, 16);
+
+        // Charger les 2 images
+        const leftUrl = leftIconPath.startsWith('file:') ? leftIconPath : pathToFileUrl(leftIconPath);
+        const rightUrl = rightIconPath.startsWith('file:') ? rightIconPath : pathToFileUrl(rightIconPath);
+
+        const [leftImg, rightImg] = await Promise.all([
+            loadImage(leftUrl).catch(() => null),
+            loadImage(rightUrl).catch(() => null),
+        ]);
+
+        // Dessiner côte à côte (avec fallback si une image manque)
+        if (leftImg) {
+            ctx.drawImage(leftImg, 0, 0, 16, 16);
+        } else {
+            // Placeholder : demi-carré coloré
+            ctx.fillStyle = '#666';
+            ctx.fillRect(0, 0, 16, 16);
+        }
+        if (rightImg) {
+            ctx.drawImage(rightImg, 16, 0, 16, 16);
+        } else {
+            ctx.fillStyle = '#999';
+            ctx.fillRect(16, 0, 16, 16);
+        }
+
+        // Séparateur visuel subtil
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(16, 0);
+        ctx.lineTo(16, 16);
+        ctx.stroke();
+
+        // Exporter en PNG
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        await IOUtils.write(outputPath, buf);
     }
 
     function generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile) {
-        // TODO Phase 3B: HTML template with <script type="application/json" id="zensplit">
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/png" href="${iconFile}">
+    <title>${name}</title>
+</head>
+<body>
+    <script type="application/json" id="zensplit">
+    {
+        "left": "${leftUrl}",
+        "right": "${rightUrl}",
+        "layout": "${layout}"
+    }
+    </script>
+    <meta http-equiv="refresh" content="0; url=${leftUrl}">
+</body>
+</html>`;
     }
 
     async function createSplitPair(name, leftUrl, rightUrl, opts = {}) {
-        // TODO Phase 3B: generate HTML + favicon + Places bookmark
+        await ensureSplitsDir();
+
+        const slug = slugify(name);
+        const layout = opts.layout || 'vsep';
+        const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
+        const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
+
+        // 1. Générer le favicon composite (si icônes fournies)
+        if (opts.leftIcon && opts.rightIcon) {
+            try {
+                await createCompositeFavicon(opts.leftIcon, opts.rightIcon, pngPath);
+            } catch (e) {
+                console.warn('[BetterSplitView] Favicon generation failed', e);
+            }
+        }
+
+        // 2. Générer le fichier HTML
+        const iconFile = `${slug}.png`;
+        const html = generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile);
+        await IOUtils.writeUTF8(htmlPath, html);
+
+        // 3. Créer le bookmark (optionnel, activé par défaut)
+        if (opts.createBookmark !== false) {
+            const fileUrl = pathToFileUrl(htmlPath);
+            try {
+                await PlacesUtils.bookmarks.insert({
+                    parentGuid: PlacesUtils.bookmarks.toolbarGuid,
+                    title: name,
+                    url: fileUrl,
+                });
+            } catch (e) {
+                console.warn('[BetterSplitView] Bookmark creation failed', e);
+            }
+        }
+
+        console.log(`[BetterSplitView] Split pair created: ${name} → ${slug}`);
+        return { slug, htmlPath, pngPath };
     }
 
     async function deleteSplitPair(filename) {
-        // TODO Phase 3B: delete HTML + PNG + Places bookmark
+        const baseName = filename.replace(/\.html$/i, '');
+        const htmlPath = PathUtils.join(SPLITS_DIR, `${baseName}.html`);
+        const pngPath = PathUtils.join(SPLITS_DIR, `${baseName}.png`);
+
+        // 1. Supprimer HTML + PNG
+        try { await IOUtils.remove(htmlPath); } catch (e) {}
+        try {
+            if (await IOUtils.exists(pngPath)) {
+                await IOUtils.remove(pngPath);
+            }
+        } catch (e) {}
+
+        // 2. Supprimer le bookmark Places correspondant
+        const fileUrl = pathToFileUrl(htmlPath);
+        try {
+            const bookmark = await PlacesUtils.bookmarks.fetch({ url: fileUrl });
+            if (bookmark) {
+                await PlacesUtils.bookmarks.remove(bookmark.guid);
+            }
+        } catch (e) {
+            console.warn('[BetterSplitView] Bookmark removal failed', e);
+        }
+
+        console.log(`[BetterSplitView] Deleted: ${baseName}`);
     }
 
     async function listSplitPairs() {
-        // TODO Phase 3B: scan splits/ directory, parse each HTML
+        await ensureSplitsDir();
+
+        let children;
+        try {
+            children = await IOUtils.getChildren(SPLITS_DIR);
+        } catch (e) {
+            return [];
+        }
+
+        const htmlFiles = children.filter(f => f.endsWith('.html'));
+        const pairs = [];
+
+        for (const file of htmlFiles) {
+            try {
+                const content = await IOUtils.readUTF8(file);
+                const match = content.match(/id="zensplit">\s*([\s\S]*?)<\/script>/);
+                if (match) {
+                    const config = JSON.parse(match[1].trim());
+                    // Extraire le <title>
+                    const titleMatch = content.match(/<title>(.*?)<\/title>/);
+                    pairs.push({
+                        filename: file.split(/[/\\]/).pop(),
+                        slug: file.split(/[/\\]/).pop().replace(/\.html$/i, ''),
+                        title: titleMatch ? titleMatch[1] : config.left,
+                        ...config,
+                    });
+                }
+            } catch (e) {
+                // Ignorer les fichiers illisibles
+            }
+        }
+
+        return pairs;
     }
 
-    // ── 3C: Public API ─────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 3C — Public API
+    // ═══════════════════════════════════════════════════════════════════════
 
     window.__betterSplitView = {
+        /** Crée une paire de split bookmark complète (HTML + favicon + bookmark) */
         createSplitPair,
+
+        /** Déclenche un split manuellement (2 URLs arbitraires) */
         triggerSplit,
+
+        /** Supprime une paire (HTML + PNG + bookmark Places) */
         deleteSplitPair,
+
+        /** Liste toutes les paires trouvées dans splits/ */
         listSplitPairs,
+
+        /** Récupère les URLs du split actif (pre-remplissage creator panel) */
+        getActiveSplitUrls() {
+            const vs = window.gZenViewSplitter;
+            if (!vs || vs.currentView < 0) return null;
+            const tabs = vs._data[vs.currentView].tabs;
+            if (!tabs || tabs.length < 2) return null;
+            return {
+                left: tabs[0].linkedBrowser.currentURI.spec,
+                right: tabs[1].linkedBrowser.currentURI.spec,
+            };
+        },
+
+        /** Constantes exposées */
+        SPLITS_DIR,
     };
 
-    // ── Init ───────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Init
+    // ═══════════════════════════════════════════════════════════════════════
 
     function init() {
         if (window.__betterSplitViewEngineInit) return;
@@ -84,6 +400,9 @@
         window.__betterSplitViewEngineInit = true;
 
         gBrowser.addTabsProgressListener(splitDetector);
+
+        // S'assurer que splits/ existe
+        ensureSplitsDir();
 
         console.log('[BetterSplitView] Split Bookmarks Engine initialized');
     }
