@@ -35,18 +35,20 @@
 /* ═══ SPLIT VIEW — Floating Box ═══ */
 
 /* Repositionner la box native : top-center → bottom-right */
+/* ═══ AJUSTER ICI : bottom = distance du bas, right = distance de la droite ═══ */
 :root:not([inDOMFullscreen="true"])
 #tabbrowser-tabpanels[zen-split-view="true"]
 .zen-view-splitter-header-container {
   top: auto !important;
-  bottom: 20px !important;
-  right: 20px !important;
+  bottom: 50px !important;
+  right: 50px !important;
   left: auto !important;
   transform: none !important;
 }
 
-/* Masquer le bouton rearrange (inutile) */
-.zen-tab-rearrange-button {
+/* Masquer les boutons natifs (rearrange + unsplit) — remplacés par notre bouton unique */
+.zen-tab-rearrange-button,
+.zen-tab-unsplit-button {
   display: none !important;
 }
 
@@ -73,12 +75,12 @@
   background: rgba(255, 255, 255, 0.15) !important;
 }
 
-/* Bouton swap injecté — même style que les natifs */
-.zen-split-swap-button {
-  list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="rgb(255,255,255)" d="M12 4L9 7h2v4h2V7h2L12 4zM4 12l3-3H5V5H3v4H1l3 3z"/></svg>');
+/* Bouton unique : clic gauche = unsplit, clic droit = swap */
+.zen-split-control-button {
+  list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="rgb(255,255,255)" d="M4 4h3v8H4zm5 0h3v8H9z"/><path stroke="rgb(255,255,255)" stroke-width="1.2" d="M2.5 2.5h11v11h-11z" fill="none"/></svg>');
 }
 
-.zen-split-swap-button .toolbarbutton-icon {
+.zen-split-control-button .toolbarbutton-icon {
   width: 16px !important;
   height: 16px !important;
 }

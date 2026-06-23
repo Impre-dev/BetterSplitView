@@ -71,42 +71,48 @@
 
     // ── Swap button creation ────────────────────────────────────────────────
 
-    function createSwapButton(header) {
-        if (!header || header.querySelector('.zen-split-swap-button')) return;
+    function createControlButton(header) {
+        if (!header || header.querySelector('.zen-split-control-button')) return;
 
-        console.log('[BetterSplitView] Injecting swap button into header:', header.className);
+        console.log('[BetterSplitView] Injecting control button into header:', header.className);
 
         const btn = document.createXULElement('toolbarbutton');
-        btn.className = 'zen-split-swap-button';
-        btn.setAttribute('tooltiptext', 'Swap left/right');
+        btn.className = 'zen-split-control-button';
+        btn.setAttribute('tooltiptext', 'Clic gauche : quitter le split | Clic droit : swap');
 
         // Icône rendue via list-style-image dans chrome.css
         const icon = document.createXULElement('image');
         icon.className = 'toolbarbutton-icon';
         btn.appendChild(icon);
 
+        // Clic gauche → quitter le split
         btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const vs = gZenViewSplitter;
+            if (vs && typeof vs.unsplitCurrentView === 'function') {
+                vs.unsplitCurrentView();
+                console.log('[BetterSplitView] Unsplit');
+            }
+        });
+
+        // Clic droit → swap
+        btn.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
             swapSplitPanes();
         });
 
-        // Insérer avant le bouton unsplit natif (à gauche)
-        const unsplitBtn = header.querySelector('.zen-tab-unsplit-button');
-        if (unsplitBtn) {
-            header.insertBefore(btn, unsplitBtn);
-        } else {
-            header.appendChild(btn);
-        }
+        header.appendChild(btn);
 
-        console.log('[BetterSplitView] Swap button injected ✓');
+        console.log('[BetterSplitView] Control button injected ✓');
     }
 
     // ── Init + MutationObserver ─────────────────────────────────────────────
 
-    function injectSwapButtons() {
+    function injectControlButtons() {
         document.querySelectorAll('.zen-view-splitter-header').forEach(header => {
-            createSwapButton(header);
+            createControlButton(header);
         });
     }
 
@@ -125,7 +131,7 @@
         // Observer unique : surveille ET l'attribut zen-split-view ET les changements
         // de childList/subtree (nouveaux headers ajoutés quand le split s'active)
         const observer = new MutationObserver(() => {
-            injectSwapButtons();
+            injectControlButtons();
         });
         observer.observe(tabpanels, {
             attributes: true,
@@ -135,7 +141,7 @@
         });
 
         // Injection initiale au cas où un split est déjà actif
-        injectSwapButtons();
+        injectControlButtons();
 
         console.log('[BetterSplitView] Floating Box initialized, observing #tabbrowser-tabpanels');
     }
