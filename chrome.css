@@ -1,4 +1,79 @@
 /* ═══════════════════════════════════════════════════════════════════════
     BetterSplitView — chrome.css
-    Phase 1: Squelette vide — rempli en Phase 2A (CSS migration)
+    Feature 1: Floating split controls (swap + close)
    ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══ Migré depuis Custom.css ═══ */
+
+/* Fixe split view */
+#tabbrowser-tabpanels[zen-split-view="true"] {
+  margin-top: 0 !important;
+  margin-right: 10px;
+}
+
+/* Indicateur de fenêtre focus pendant un split */
+:root:not([inDOMFullscreen="true"])
+#tabbrowser-tabpanels[zen-split-view="true"]
+.browserSidebarContainer.deck-selected {
+  &:not(.zen-glance-overlay) {
+    outline: none !important;
+    border-bottom: none !important;
+    position: relative;
+  }
+  &:not(.zen-glance-overlay)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 5px;
+    background: linear-gradient(135deg, #f2fff0 0%, #f9fff8 50%, #dcfff9 100%);
+    pointer-events: none;
+  }
+}
+
+/* ═══ SPLIT VIEW — Floating Box ═══ */
+
+/* Repositionner la box native : top-center → bottom-right */
+:root:not([inDOMFullscreen="true"])
+#tabbrowser-tabpanels[zen-split-view="true"]
+.zen-view-splitter-header-container {
+  top: auto !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  left: auto !important;
+  transform: none !important;
+}
+
+/* Masquer le bouton rearrange (inutile) */
+.zen-tab-rearrange-button {
+  display: none !important;
+}
+
+/* Styler le header (compact + glass) */
+.zen-view-splitter-header {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px !important;
+  background: rgba(40, 40, 40, 0.85) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Styler les boutons */
+.zen-view-splitter-header toolbarbutton {
+  padding: 4px !important;
+  border-radius: 4px !important;
+}
+
+.zen-view-splitter-header toolbarbutton:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Bouton swap injecté — même style que les natifs */
+.zen-split-swap-button {
+  list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="context-fill" d="M12 4L9 7h2v4h2V7h2L12 4zM4 12l3-3H5V5H3v4H1l3 3z"/></svg>');
+}
