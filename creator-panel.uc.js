@@ -42,8 +42,11 @@
         return el;
     }
 
+    const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+
     function createHTML(tag, attrs = {}) {
-        const el = document.createElement(tag);
+        // En contexte XUL, il faut explicitement le namespace XHTML pour les éléments HTML
+        const el = document.createElementNS(XHTML_NS, tag);
         for (const [k, v] of Object.entries(attrs)) {
             if (k === 'style') { el.style.cssText = v; continue; }
             if (k === 'text') { el.textContent = v; continue; }
@@ -60,7 +63,8 @@
 
     function injectStyles() {
         if (document.getElementById('zensplit-creator-styles')) return;
-        const style = createHTML('style', { id: 'zensplit-creator-styles' });
+        const style = document.createXULElement ? document.createElementNS('http://www.w3.org/1999/xhtml', 'style') : document.createElement('style');
+        style.setAttribute('id', 'zensplit-creator-styles');
         style.textContent = `
             .zensplit-panel {
                 width: 340px;
@@ -182,7 +186,8 @@
                 font-size: 13px;
             }
         `;
-        document.head.appendChild(style);
+        // En contexte XUL, document.head n'existe pas — utiliser documentElement
+        (document.head || document.documentElement).appendChild(style);
     }
 
     // ── Toolbar Button ─────────────────────────────────────────────────────
@@ -195,14 +200,36 @@
             class: 'toolbarbutton-1 chromeclass-toolbar-additional',
             label: 'Split Bookmark',
             tooltiptext: 'Créer / gérer un split bookmark',
-            style: 'list-style-image: url("' + SVG_ICON + '")',
         });
+
+        // Icône via sous-élément image (plus fiable que list-style-image inline en XUL)
+        const icon = document.createXULElement('image');
+        icon.className = 'toolbarbutton-icon';
+        icon.style.cssText = 'width: 16px; height: 16px; content: url("' + SVG_ICON + '");';
+        toolbarButton.appendChild(icon);
 
         toolbarButton.addEventListener('command', toggleMainPanel);
 
-        const navBar = document.getElementById('nav-bar') || document.getElementById('TabsToolbar');
-        if (navBar) {
-            navBar.appendChild(toolbarButton);
+        // Chercher un container visible — nav-bar en priorité, puis fallbacks Zen
+        const containers = [
+            document.getElementById('nav-bar'),
+            document.getElementById('TabsToolbar'),
+            document.getElementById('zen-sidebar-top-buttons'),
+            document.querySelector('.customization-target'),
+        ];
+
+        let injected = false;
+        for (const c of containers) {
+            if (c) {
+                c.appendChild(toolbarButton);
+                injected = true;
+                console.log('[BetterSplitView] Toolbar button injected into:', c.id || c.className);
+                break;
+            }
+        }
+
+        if (!injected) {
+            console.error('[BetterSplitView] No toolbar container found for button injection');
         }
     }
 
@@ -467,10 +494,13 @@
         if (!window.gBrowser || !gBrowser.tabContainer) { setTimeout(init, 500); return; }
         window.__betterSplitViewPanelInit = true;
 
-        injectStyles();
-        injectToolbarButton();
-
-        console.log('[BetterSplitView] Creator Panel initialized');
+        try {
+            injectStyles();
+            injectToolbarButton();
+            console.log('[BetterSplitView] Creator Panel initialized');
+        } catch (e) {
+            console.error('[BetterSplitView] Creator Panel init error', e);
+        }
     }
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') init();
