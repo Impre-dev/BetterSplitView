@@ -75,5 +75,10 @@
 
 /* Bouton swap injecté — même style que les natifs */
 .zen-split-swap-button {
-  list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="context-fill" d="M12 4L9 7h2v4h2V7h2L12 4zM4 12l3-3H5V5H3v4H1l3 3z"/></svg>');
+  list-style-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="rgb(255,255,255)" d="M12 4L9 7h2v4h2V7h2L12 4zM4 12l3-3H5V5H3v4H1l3 3z"/></svg>');
+}
+
+.zen-split-swap-button .toolbarbutton-icon {
+  width: 16px !important;
+  height: 16px !important;
 }

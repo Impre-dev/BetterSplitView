@@ -40,7 +40,9 @@
     // ── Swap button creation ────────────────────────────────────────────────
 
     function createSwapButton(header) {
-        if (header.querySelector('.zen-split-swap-button')) return;
+        if (!header || header.querySelector('.zen-split-swap-button')) return;
+
+        console.log('[BetterSplitView] Injecting swap button into header:', header.className);
 
         const btn = document.createXULElement('toolbarbutton');
         btn.className = 'zen-split-swap-button';
@@ -64,6 +66,8 @@
         } else {
             header.appendChild(btn);
         }
+
+        console.log('[BetterSplitView] Swap button injected ✓');
     }
 
     // ── Init + MutationObserver ─────────────────────────────────────────────
@@ -79,31 +83,29 @@
         if (!window.gBrowser || !gBrowser.tabContainer) { setTimeout(init, 500); return; }
         window.__betterSplitViewFloatingBoxInit = true;
 
-        // Observer 1: détection activation/désactivation du split view
         const tabpanels = document.getElementById('tabbrowser-tabpanels');
-        if (tabpanels) {
-            const attrObserver = new MutationObserver(() => {
-                injectSwapButtons();
-            });
-            attrObserver.observe(tabpanels, {
-                attributes: true,
-                attributeFilter: ['zen-split-view']
-            });
+        if (!tabpanels) {
+            console.warn('[BetterSplitView] #tabbrowser-tabpanels not found, retrying...');
+            setTimeout(init, 1000);
+            return;
         }
 
-        // Observer 2: détection de nouveaux headers ajoutés au DOM
-        const overlay = document.getElementById('zen-splitview-overlay-wrapper');
-        if (overlay) {
-            const childObserver = new MutationObserver(() => {
-                injectSwapButtons();
-            });
-            childObserver.observe(overlay, { childList: true, subtree: true });
-        }
+        // Observer unique : surveille ET l'attribut zen-split-view ET les changements
+        // de childList/subtree (nouveaux headers ajoutés quand le split s'active)
+        const observer = new MutationObserver(() => {
+            injectSwapButtons();
+        });
+        observer.observe(tabpanels, {
+            attributes: true,
+            attributeFilter: ['zen-split-view'],
+            childList: true,
+            subtree: true,
+        });
 
         // Injection initiale au cas où un split est déjà actif
         injectSwapButtons();
 
-        console.log('[BetterSplitView] Floating Box initialized');
+        console.log('[BetterSplitView] Floating Box initialized, observing #tabbrowser-tabpanels');
     }
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') init();
