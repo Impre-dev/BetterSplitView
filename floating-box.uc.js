@@ -24,16 +24,37 @@
     // ── Swap logic ─────────────────────────────────────────────────────────
 
     function swapSplitPanes() {
-        const vs = window.gZenViewSplitter;
-        if (!vs || vs.currentView < 0) return;
+        const vs = gZenViewSplitter;
+        if (!vs || vs.currentView < 0) {
+            console.warn('[BetterSplitView] swapSplitPanes: no active split view');
+            return;
+        }
 
+        // Méthode 1: commande Zen native (gère le rendu visuel)
+        const cmdEl = document.getElementById('cmd_zenSplitViewReverseTabs');
+        if (cmdEl) {
+            console.log('[BetterSplitView] Using cmd_zenSplitViewReverseTabs');
+            cmdEl.doCommand();
+            return;
+        }
+
+        // Méthode 2: goDoCommand
+        if (typeof goDoCommand === 'function') {
+            console.log('[BetterSplitView] Using goDoCommand(cmd_zenSplitViewReverseTabs)');
+            goDoCommand('cmd_zenSplitViewReverseTabs');
+            return;
+        }
+
+        // Méthode 3 (fallback): swapNodes direct + refresh
+        console.log('[BetterSplitView] Fallback: swapNodes + reverseTabs');
         const groupData = vs._data[vs.currentView];
         if (!groupData || groupData.tabs.length < 2) return;
-
         const nodes = groupData.tabs.map(tab => vs.getSplitNodeFromTab(tab));
         if (nodes.length >= 2 && nodes[0] && nodes[1]) {
             vs.swapNodes(nodes[0], nodes[1]);
-            console.log('[BetterSplitView] Swap effectué');
+            // Forcer le refresh si la méthode existe
+            if (typeof vs.refresh === 'function') vs.refresh();
+            if (typeof vs.update === 'function') vs.update();
         }
     }
 
