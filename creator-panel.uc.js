@@ -185,52 +185,46 @@
                 opacity: 0.5;
                 font-size: 13px;
             }
+            /* Icône du bouton CustomizableUI — single quotes car le SVG contient des doubles */
+            #zensplit-creator-btn .toolbarbutton-icon {
+                width: 16px !important;
+                height: 16px !important;
+                list-style-image: url('${SVG_ICON}');
+            }
         `;
         // En contexte XUL, document.head n'existe pas — utiliser documentElement
         (document.head || document.documentElement).appendChild(style);
     }
 
-    // ── Toolbar Button ─────────────────────────────────────────────────────
+    // ── Toolbar Widget (CustomizableUI) ────────────────────────────────────
 
     function injectToolbarButton() {
-        if (document.getElementById('zensplit-creator-btn')) return;
+        // Nettoyer un éventuel widget de test précédent
+        try { CustomizableUI.destroyWidget('test-btn'); } catch (e) {}
 
-        toolbarButton = createXUL('toolbarbutton', {
-            id: 'zensplit-creator-btn',
-            class: 'toolbarbutton-1 chromeclass-toolbar-additional',
-            label: 'Split Bookmark',
-            tooltiptext: 'Créer / gérer un split bookmark',
-        });
+        // Éviter le double-enregistrement
+        try {
+            // createWidget lance une erreur si déjà enregistré — on l'ignore
+            CustomizableUI.createWidget({
+                id: 'zensplit-creator-btn',
+                type: 'button',
+                label: 'Split Bookmark',
+                tooltiptext: 'Créer / gérer un split bookmark',
+                // Pas de defaultArea → le bouton démarre dans la palette
+                // du menu "Personnaliser", l'utilisateur le place où il veut
+                onCommand: () => toggleMainPanel(),
+            });
 
-        // Icône via sous-élément image (plus fiable que list-style-image inline en XUL)
-        const icon = document.createXULElement('image');
-        icon.className = 'toolbarbutton-icon';
-        icon.style.cssText = 'width: 16px; height: 16px; content: url("' + SVG_ICON + '");';
-        toolbarButton.appendChild(icon);
-
-        toolbarButton.addEventListener('command', toggleMainPanel);
-
-        // Chercher un container visible — nav-bar en priorité, puis fallbacks Zen
-        const containers = [
-            document.getElementById('nav-bar'),
-            document.getElementById('TabsToolbar'),
-            document.getElementById('zen-sidebar-top-buttons'),
-            document.querySelector('.customization-target'),
-        ];
-
-        let injected = false;
-        for (const c of containers) {
-            if (c) {
-                c.appendChild(toolbarButton);
-                injected = true;
-                console.log('[BetterSplitView] Toolbar button injected into:', c.id || c.className);
-                break;
-            }
+            console.log('[BetterSplitView] Toolbar widget registered via CustomizableUI');
+        } catch (e) {
+            // Widget déjà enregistré (re-init) — c'est OK
+            console.log('[BetterSplitView] Toolbar widget already registered');
         }
+    }
 
-        if (!injected) {
-            console.error('[BetterSplitView] No toolbar container found for button injection');
-        }
+    /** Récupère le bouton DOM courant (CustomizableUI le gère par-document) */
+    function getToolbarButton() {
+        return document.getElementById('zensplit-creator-btn');
     }
 
     // ── Main Panel (Create) ────────────────────────────────────────────────
@@ -246,7 +240,8 @@
         if (mainPanel.state === 'open') {
             mainPanel.hidePopup();
         } else {
-            mainPanel.openPopup(toolbarButton, 'after_end', 0, 0, false, false);
+            const btn = getToolbarButton();
+            if (btn) mainPanel.openPopup(btn, 'after_end', 0, 0, false, false);
         }
     }
 
@@ -400,7 +395,8 @@
             document.getElementById('mainPopupSet')?.appendChild(managePanel) || document.body.appendChild(managePanel);
         }
         populateManageList();
-        managePanel.openPopup(toolbarButton, 'after_end', 0, 0, false, false);
+        const btn = getToolbarButton();
+        if (btn) managePanel.openPopup(btn, 'after_end', 0, 0, false, false);
     }
 
     function buildManagePanel() {
