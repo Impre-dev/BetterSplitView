@@ -185,10 +185,12 @@
                 opacity: 0.5;
                 font-size: 13px;
             }
-            /* Icône du bouton CustomizableUI — single quotes car le SVG contient des doubles */
+            /* Icône du bouton CustomizableUI — hérite de la taille de la toolbar */
             #zensplit-creator-btn .toolbarbutton-icon {
-                width: 16px !important;
-                height: 16px !important;
+                width: auto !important;
+                height: auto !important;
+            }
+            #zensplit-creator-btn {
                 list-style-image: url('${SVG_ICON}');
             }
         `;
@@ -228,7 +230,6 @@
                     const icon = doc.createXULElement('image');
                     icon.className = 'toolbarbutton-icon';
                     icon.setAttribute('src', SVG_ICON);
-                    icon.style.cssText = 'width: 16px; height: 16px;';
                     btn.appendChild(icon);
 
                     btn.addEventListener('command', () => toggleMainPanel());
