@@ -85,8 +85,9 @@
         icon.className = 'toolbarbutton-icon';
         btn.appendChild(icon);
 
-        // Clic gauche → quitter le split
+        // Clic gauche uniquement (button === 0) → quitter le split
         btn.addEventListener('click', (e) => {
+            if (e.button !== 0) return; // Ignorer clic droit/milieu
             e.preventDefault();
             e.stopPropagation();
             const vs = gZenViewSplitter;
