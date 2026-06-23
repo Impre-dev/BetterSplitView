@@ -57,7 +57,7 @@
   display: flex !important;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px !important;
+  padding: 4px 4px !important;
   background: rgba(40, 40, 40, 0.85) !important;
   backdrop-filter: blur(10px);
   border-radius: 4px !important;
