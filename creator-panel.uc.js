@@ -303,15 +303,17 @@
         container.appendChild(site2Field);
 
         // Layout radio
+        // NB: vsep = séparateur vertical = côte à côte (gauche/droite) = "Horizontal"
+        //     hsep = séparateur horizontal = empilés (haut/bas) = "Vertical"
         const layoutRow = createHTML('div', { class: 'zensplit-layout-row' });
         const layoutLabel = createHTML('label');
         layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep', checked: 'checked' }));
-        layoutLabel.appendChild(document.createTextNode(' ↕ Vertical'));
+        layoutLabel.appendChild(document.createTextNode(' ↔ Horizontal'));
         layoutRow.appendChild(layoutLabel);
 
         const layoutLabel2 = createHTML('label');
         layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep' }));
-        layoutLabel2.appendChild(document.createTextNode(' ↔ Horizontal'));
+        layoutLabel2.appendChild(document.createTextNode(' ↕ Vertical'));
         layoutRow.appendChild(layoutLabel2);
         container.appendChild(layoutRow);
 
