@@ -91,10 +91,6 @@
             .zensplit-field {
                 margin-bottom: 10px;
             }
-            /* Dernier champ (site 2) : plus d'espace avant la section layout */
-            .zensplit-field:last-of-type {
-                margin-bottom: 18px;
-            }
             .zensplit-field label {
                 display: block;
                 font-size: 12px;
@@ -121,6 +117,7 @@
             .zensplit-layout-row {
                 display: flex;
                 gap: 16px;
+                margin-top: 10px;
                 margin-bottom: 20px;
             }
             .zensplit-layout-row label {
