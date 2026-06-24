@@ -209,7 +209,27 @@
         });
     }
 
-    async function createCompositeFavicon(leftIconPath, rightIconPath, outputPath) {
+    /**
+     * Fetch le favicon d'une URL via Google favicon service.
+     * Retourne un objectURL (same-origin → pas de canvas taint).
+     */
+    async function fetchFaviconAsObjectUrl(pageUrl) {
+        try {
+            const url = new URL(pageUrl);
+            const domain = url.hostname;
+            const favUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+            const response = await fetch(favUrl);
+            if (!response.ok) return null;
+            const blob = await response.blob();
+            if (blob.size === 0) return null;
+            return URL.createObjectURL(blob);
+        } catch (e) {
+            console.warn('[BetterSplitView] Favicon fetch failed for', pageUrl, e);
+            return null;
+        }
+    }
+
+    async function createCompositeFavicon(leftSrc, rightSrc, outputPath) {
         const canvas = document.createElement('canvas');
         canvas.width = 32;
         canvas.height = 16;
@@ -218,13 +238,10 @@
         // Fond transparent
         ctx.clearRect(0, 0, 32, 16);
 
-        // Charger les 2 images
-        const leftUrl = leftIconPath.startsWith('file:') ? leftIconPath : pathToFileUrl(leftIconPath);
-        const rightUrl = rightIconPath.startsWith('file:') ? rightIconPath : pathToFileUrl(rightIconPath);
-
+        // leftSrc / rightSrc peuvent être des file:///, objectURL, ou data: URL
         const [leftImg, rightImg] = await Promise.all([
-            loadImage(leftUrl).catch(() => null),
-            loadImage(rightUrl).catch(() => null),
+            loadImage(leftSrc).catch(() => null),
+            loadImage(rightSrc).catch(() => null),
         ]);
 
         // Dessiner côte à côte (avec fallback si une image manque)
@@ -285,13 +302,31 @@
         const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
         const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
 
-        // 1. Générer le favicon composite (si icônes fournies)
-        if (opts.leftIcon && opts.rightIcon) {
-            try {
-                await createCompositeFavicon(opts.leftIcon, opts.rightIcon, pngPath);
-            } catch (e) {
-                console.warn('[BetterSplitView] Favicon generation failed', e);
+        // 1. Générer le favicon composite
+        //    Si icônes explicites fournies → les utiliser
+        //    Sinon → auto-fetch via Google favicon service
+        try {
+            let leftSrc = opts.leftIcon;
+            let rightSrc = opts.rightIcon;
+
+            if (!leftSrc) {
+                leftSrc = await fetchFaviconAsObjectUrl(leftUrl);
             }
+            if (!rightSrc) {
+                rightSrc = await fetchFaviconAsObjectUrl(rightUrl);
+            }
+
+            if (leftSrc && rightSrc) {
+                await createCompositeFavicon(leftSrc, rightSrc, pngPath);
+            } else {
+                console.warn('[BetterSplitView] Could not fetch favicons, skipping composite');
+            }
+
+            // Nettoyer les objectURLs
+            if (leftSrc && leftSrc.startsWith('blob:')) URL.revokeObjectURL(leftSrc);
+            if (rightSrc && rightSrc.startsWith('blob:')) URL.revokeObjectURL(rightSrc);
+        } catch (e) {
+            console.warn('[BetterSplitView] Favicon generation failed', e);
         }
 
         // 2. Générer le fichier HTML
