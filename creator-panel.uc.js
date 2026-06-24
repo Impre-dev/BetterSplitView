@@ -143,7 +143,7 @@
                 transition: opacity 0.15s;
             }
             .zensplit-btn-primary {
-                background: #4caf50;
+                background: #42414D;
                 color: white;
             }
             .zensplit-btn-primary:hover { opacity: 0.88; }
@@ -287,18 +287,13 @@
         const panel = createXUL('panel', {
             id: 'zensplit-main-panel',
             type: 'arrow',
-            noautohide: 'false',
             consumeoutsideclicks: 'true',
         });
 
         const container = createHTML('div', { class: 'zensplit-panel' });
 
         // Titre
-        container.appendChild(createHTML('h3', { text: '✂️ Créer un Split Bookmark' }));
-
-        // Pre-fill hint
-        const hint = createHTML('div', { id: 'zensplit-prefill-hint', class: 'zensplit-prefill-hint', style: 'display:none;' });
-        container.appendChild(hint);
+        container.appendChild(createHTML('h3', { text: 'BetterSplitView' }));
 
         // Name
         const nameField = createHTML('div', { class: 'zensplit-field' });
@@ -362,19 +357,12 @@
         if (!api || !api.getActiveSplitUrls) return;
 
         const active = api.getActiveSplitUrls();
-        const hint = document.getElementById('zensplit-prefill-hint');
         const url1 = document.getElementById('zensplit-url1');
         const url2 = document.getElementById('zensplit-url2');
 
         if (active && active.left && active.right) {
             if (url1) url1.value = active.left;
             if (url2) url2.value = active.right;
-            if (hint) {
-                hint.textContent = '↩ Pré-rempli depuis le split actif';
-                hint.style.display = 'block';
-            }
-        } else {
-            if (hint) hint.style.display = 'none';
         }
     }
 
@@ -442,7 +430,6 @@
         const panel = createXUL('panel', {
             id: 'zensplit-manage-panel',
             type: 'arrow',
-            noautohide: 'false',
             consumeoutsideclicks: 'true',
         });
 
@@ -451,14 +438,6 @@
 
         const listDiv = createHTML('div', { id: 'zensplit-manage-list', class: 'zensplit-manage-list' });
         container.appendChild(listDiv);
-
-        const closeBtn = createHTML('button', {
-            class: 'zensplit-btn zensplit-btn-secondary',
-            text: 'Fermer',
-            style: 'margin-top: 10px; width: 100%;',
-            onclick: () => managePanel.hidePopup(),
-        });
-        container.appendChild(closeBtn);
 
         panel.appendChild(container);
         return panel;
