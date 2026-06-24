@@ -117,7 +117,7 @@
             .zensplit-layout-row {
                 display: flex;
                 gap: 16px;
-                margin-top: 10px;
+                margin-top: 24px;
                 margin-bottom: 20px;
             }
             .zensplit-layout-row label {
