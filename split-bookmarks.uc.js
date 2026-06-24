@@ -156,7 +156,20 @@
                 return;
             }
 
-            // 4. RÉUTILISER le tab intermédiaire pour l'URL de gauche
+            // 4. Bridge mode : URL seule, pas de split
+            if (!config.right && config.url) {
+                try {
+                    browser.loadURI(Services.io.newURI(config.url), {
+                        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+                    });
+                    console.log(`[BetterSplitView] Bridge: ${config.url}`);
+                } catch (e) {
+                    console.warn('[BetterSplitView] Bridge navigation failed', e);
+                }
+                return;
+            }
+
+            // 5. RÉUTILISER le tab intermédiaire pour l'URL de gauche
             //    (il a déjà un browser valide, contrairement à un addTrustedTab lazy)
             try {
                 browser.loadURI(Services.io.newURI(config.left), {
@@ -166,13 +179,13 @@
                 console.warn('[BetterSplitView] Failed to navigate to left URL', e);
             }
 
-            // 5. Créer le tab de droite
+            // 6. Créer le tab de droite
             const tab2 = gBrowser.addTrustedTab(config.right);
 
-            // 6. Attendre que les browsers soient initialisés
+            // 7. Attendre que les browsers soient initialisés
             await new Promise(r => setTimeout(r, 600));
 
-            // 7. Déclencher le split avec le tab courant + le nouveau tab
+            // 8. Déclencher le split avec le tab courant + le nouveau tab
             const vs = window.gZenViewSplitter;
             if (vs) {
                 vs.splitTabs([tab, tab2], config.layout || 'vsep');
@@ -297,20 +310,20 @@
     }
 
     function generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile) {
+        const isBridge = !rightUrl;
+        const jsonConfig = isBridge
+            ? JSON.stringify({ url: leftUrl }, null, 4)
+            : JSON.stringify({ left: leftUrl, right: rightUrl, layout }, null, 4);
+        const iconLink = isBridge ? '' : `\n    <link rel="icon" type="image/png" href="${iconFile}">`;
         return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <link rel="icon" type="image/png" href="${iconFile}">
+    <meta charset="utf-8">${iconLink}
     <title>${name}</title>
 </head>
 <body>
     <script type="application/json" id="zensplit">
-    {
-        "left": "${leftUrl}",
-        "right": "${rightUrl}",
-        "layout": "${layout}"
-    }
+    ${jsonConfig}
     </script>
     <meta http-equiv="refresh" content="0; url=${leftUrl}">
 </body>
@@ -324,32 +337,33 @@
         const layout = opts.layout || 'vsep';
         const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
         const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
+        const isBridge = !rightUrl;
 
-        // 1. Générer le favicon composite
-        //    Si icônes explicites fournies → les utiliser
-        //    Sinon → auto-fetch via Google favicon service
-        try {
-            let leftSrc = opts.leftIcon;
-            let rightSrc = opts.rightIcon;
+        // 1. Générer le favicon composite (mode split uniquement)
+        if (!isBridge) {
+            try {
+                let leftSrc = opts.leftIcon;
+                let rightSrc = opts.rightIcon;
 
-            if (!leftSrc) {
-                leftSrc = await fetchFaviconAsObjectUrl(leftUrl);
+                if (!leftSrc) {
+                    leftSrc = await fetchFaviconAsObjectUrl(leftUrl);
+                }
+                if (!rightSrc) {
+                    rightSrc = await fetchFaviconAsObjectUrl(rightUrl);
+                }
+
+                if (leftSrc && rightSrc) {
+                    await createCompositeFavicon(leftSrc, rightSrc, pngPath);
+                } else {
+                    console.warn('[BetterSplitView] Could not fetch favicons, skipping composite');
+                }
+
+                // Nettoyer les objectURLs
+                if (leftSrc && leftSrc.startsWith('blob:')) URL.revokeObjectURL(leftSrc);
+                if (rightSrc && rightSrc.startsWith('blob:')) URL.revokeObjectURL(rightSrc);
+            } catch (e) {
+                console.warn('[BetterSplitView] Favicon generation failed', e);
             }
-            if (!rightSrc) {
-                rightSrc = await fetchFaviconAsObjectUrl(rightUrl);
-            }
-
-            if (leftSrc && rightSrc) {
-                await createCompositeFavicon(leftSrc, rightSrc, pngPath);
-            } else {
-                console.warn('[BetterSplitView] Could not fetch favicons, skipping composite');
-            }
-
-            // Nettoyer les objectURLs
-            if (leftSrc && leftSrc.startsWith('blob:')) URL.revokeObjectURL(leftSrc);
-            if (rightSrc && rightSrc.startsWith('blob:')) URL.revokeObjectURL(rightSrc);
-        } catch (e) {
-            console.warn('[BetterSplitView] Favicon generation failed', e);
         }
 
         // 2. Générer le fichier HTML

@@ -334,8 +334,8 @@
 
         // Site 2
         const site2Field = createHTML('div', { class: 'zensplit-field' });
-        site2Field.appendChild(createHTML('label', { text: 'Site 2 (droite)', for: 'zensplit-url2' }));
-        site2Field.appendChild(createHTML('input', { type: 'url', id: 'zensplit-url2', placeholder: 'https://claude.ai' }));
+        site2Field.appendChild(createHTML('label', { text: 'Site 2 (vide → pont)', for: 'zensplit-url2' }));
+        site2Field.appendChild(createHTML('input', { type: 'url', id: 'zensplit-url2', placeholder: 'https://claude.ai (optionnel)' }));
         container.appendChild(site2Field);
 
         // Layout radio
@@ -398,12 +398,12 @@
         const layoutEl = document.querySelector('input[name="zensplit-layout"]:checked');
         const layout = layoutEl ? layoutEl.value : 'vsep';
 
-        if (!name || !url1 || !url2) {
+        if (!name || !url1) {
             // Feedback visuel simple
             const btn = document.querySelector('.zensplit-btn-primary');
             if (btn) {
                 const orig = btn.textContent;
-                btn.textContent = '⚠️ Remplis tout !';
+                btn.textContent = '⚠️ Nom + URL requis !';
                 setTimeout(() => { btn.textContent = orig; }, 1500);
             }
             return;
@@ -500,7 +500,11 @@
             const info = createHTML('div', { class: 'zensplit-manage-info' });
             info.appendChild(createHTML('div', { class: 'zensplit-manage-title', text: pair.title || pair.slug }));
 
-            const urls = pair.left && pair.right ? `${pair.left} | ${pair.right}` : (pair.filename || '');
+            const urls = pair.left && pair.right
+                ? `${pair.left} | ${pair.right}`
+                : pair.url
+                    ? `🔗 ${pair.url}`
+                    : (pair.filename || '');
             const urlsDiv = createHTML('div', { class: 'zensplit-manage-urls', text: urls });
             info.appendChild(urlsDiv);
             item.appendChild(info);
