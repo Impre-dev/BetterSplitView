@@ -341,23 +341,51 @@
 
         // 1. Générer le favicon
         if (isBridge) {
-            // Mode pont : fetch le favicon de l'URL de destination et le sauver directement
+            // Mode pont : copier le favicon de la destination tel quel (sans retouche)
             try {
                 const url = new URL(leftUrl);
-                const domain = url.hostname;
-                const favUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-                console.log('[BetterSplitView] Bridge favicon fetch:', favUrl);
-                const response = await fetch(favUrl);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    console.log('[BetterSplitView] Favicon blob size:', blob.size, 'type:', blob.type);
-                    if (blob.size > 0) {
-                        const buf = new Uint8Array(await blob.arrayBuffer());
-                        await IOUtils.write(pngPath, buf);
-                        console.log('[BetterSplitView] Bridge favicon saved to', pngPath);
+                let faviconBytes = null;
+
+                if (url.protocol === 'file:') {
+                    // Fichier local : lire le HTML cible et extraire <link rel="icon">
+                    try {
+                        const localPath = fileUrlToPath(leftUrl);
+                        if (await IOUtils.exists(localPath)) {
+                            const html = await IOUtils.readUTF8(localPath);
+                            const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i)
+                                || html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i);
+                            if (iconMatch) {
+                                let iconHref = iconMatch[1];
+                                if (iconHref.startsWith('./')) iconHref = iconHref.slice(2);
+                                if (!iconHref.startsWith('http') && !iconHref.startsWith('data:')) {
+                                    const dir = localPath.replace(/[/\\][^/\\]+$/, '');
+                                    const iconPath = PathUtils.join(dir, iconHref.replace(/\//g, '\\'));
+                                    if (await IOUtils.exists(iconPath)) {
+                                        faviconBytes = new Uint8Array(await IOUtils.read(iconPath));
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[BetterSplitView] Local favicon extraction failed', e);
                     }
+                } else if (url.hostname) {
+                    // URL web : Google favicon service → blob → save direct
+                    const favUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
+                    const response = await fetch(favUrl);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        if (blob.size > 0) {
+                            faviconBytes = new Uint8Array(await blob.arrayBuffer());
+                        }
+                    }
+                }
+
+                if (faviconBytes) {
+                    await IOUtils.write(pngPath, faviconBytes);
+                    console.log('[BetterSplitView] Bridge favicon saved');
                 } else {
-                    console.warn('[BetterSplitView] Favicon fetch HTTP', response.status);
+                    console.warn('[BetterSplitView] No favicon found for bridge');
                 }
             } catch (e) {
                 console.warn('[BetterSplitView] Bridge favicon failed', e);
