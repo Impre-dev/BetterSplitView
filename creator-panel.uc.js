@@ -91,6 +91,10 @@
             .zensplit-field {
                 margin-bottom: 10px;
             }
+            /* Dernier champ (site 2) : plus d'espace avant la section layout */
+            .zensplit-field:last-of-type {
+                margin-bottom: 18px;
+            }
             .zensplit-field label {
                 display: block;
                 font-size: 12px;
@@ -117,7 +121,7 @@
             .zensplit-layout-row {
                 display: flex;
                 gap: 16px;
-                margin-bottom: 14px;
+                margin-bottom: 20px;
             }
             .zensplit-layout-row label {
                 display: flex;
@@ -317,13 +321,13 @@
         // TESTS CONFIRMÉS : hsep = empilés (haut/bas), vsep = côte à côte (gauche/droite)
         const layoutRow = createHTML('div', { class: 'zensplit-layout-row' });
         const layoutLabel = createHTML('label');
-        layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep' }));
-        layoutLabel.appendChild(document.createTextNode(' ↕ Vertical'));
+        layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep', checked: 'checked' }));
+        layoutLabel.appendChild(document.createTextNode(' ↔ Horizontal'));
         layoutRow.appendChild(layoutLabel);
 
         const layoutLabel2 = createHTML('label');
-        layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep', checked: 'checked' }));
-        layoutLabel2.appendChild(document.createTextNode(' ↔ Horizontal'));
+        layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep' }));
+        layoutLabel2.appendChild(document.createTextNode(' ↕ Vertical'));
         layoutRow.appendChild(layoutLabel2);
         container.appendChild(layoutRow);
 
@@ -332,7 +336,7 @@
 
         const manageBtn = createHTML('button', {
             class: 'zensplit-btn zensplit-btn-secondary',
-            text: '📋 Gérer',
+            text: '📋 Liste',
             onclick: () => {
                 mainPanel.hidePopup();
                 openManagePanel();
