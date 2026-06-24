@@ -117,7 +117,6 @@
             }
             .zensplit-layout-row {
                 display: flex;
-                justify-content: center;
                 gap: 16px;
                 margin-top: 20px;
                 margin-bottom: 20px;
