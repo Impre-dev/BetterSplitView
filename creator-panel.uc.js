@@ -143,7 +143,7 @@
                 transition: opacity 0.15s;
             }
             .zensplit-btn-primary {
-                background: #42414D;
+                background: #4caf50;
                 color: white;
             }
             .zensplit-btn-primary:hover { opacity: 0.88; }
@@ -434,7 +434,7 @@
         });
 
         const container = createHTML('div', { class: 'zensplit-panel' });
-        container.appendChild(createHTML('h3', { text: '📋 Gérer les Split Bookmarks' }));
+        container.appendChild(createHTML('h3', { text: 'Liste des Splits' }));
 
         const listDiv = createHTML('div', { id: 'zensplit-manage-list', class: 'zensplit-manage-list' });
         container.appendChild(listDiv);
