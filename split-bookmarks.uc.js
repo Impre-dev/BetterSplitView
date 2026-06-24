@@ -140,11 +140,28 @@
                 return;
             }
 
-            // 4. Fermer le tab intermédiaire (celui qui a chargé le HTML)
-            gBrowser.removeTab(tab);
+            // 4. RÉUTILISER le tab intermédiaire pour l'URL de gauche
+            //    (il a déjà un browser valide, contrairement à un addTrustedTab lazy)
+            try {
+                browser.loadURI(Services.io.newURI(config.left), {
+                    triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+                });
+            } catch (e) {
+                console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+            }
 
-            // 5. Déclencher le split avec les 2 URLs
-            await triggerSplit(config.left, config.right, config.layout || 'vsep');
+            // 5. Créer le tab de droite
+            const tab2 = gBrowser.addTrustedTab(config.right);
+
+            // 6. Attendre que les browsers soient initialisés
+            await new Promise(r => setTimeout(r, 600));
+
+            // 7. Déclencher le split avec le tab courant + le nouveau tab
+            const vs = window.gZenViewSplitter;
+            if (vs) {
+                vs.splitTabs([tab, tab2], config.layout || 'vsep');
+                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'vsep'})`);
+            }
 
         } catch (e) {
             console.error('[BetterSplitView] handleSplitNavigation error', e);
@@ -160,12 +177,18 @@
             return;
         }
 
-        // Ouvrir les 2 tabs
+        // addTrustedTab crée des tabs "lazy" (linkedBrowser = null)
+        // Il faut sélectionner le tab pour forcer la création du browser
         const tab1 = gBrowser.addTrustedTab(leftUrl);
-        const tab2 = gBrowser.addTrustedTab(rightUrl);
+        gBrowser.selectedTab = tab1;
+        await new Promise(r => setTimeout(r, 400));
 
-        // Attendre que les tabs soient initialisés
-        await new Promise(r => setTimeout(r, 300));
+        const tab2 = gBrowser.addTrustedTab(rightUrl);
+        await new Promise(r => setTimeout(r, 400));
+
+        // Re-sélectionner tab1 (pour que splitTabs parte du bon tab)
+        gBrowser.selectedTab = tab1;
+        await new Promise(r => setTimeout(r, 200));
 
         // Déclencher le split
         vs.splitTabs([tab1, tab2], layout);
