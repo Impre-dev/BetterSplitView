@@ -81,93 +81,54 @@
     // Anti-reentrance : évite de traiter le même fichier HTML plusieurs fois
     const _processing = new WeakSet();
 
-    // Cache en mémoire : slug → {left, right, layout}
-    // Permet une lookup synchrone dans onLocationChange → évite l'erreur DNS
-    const _splitCache = new Map();
-
     const splitDetector = {
         onLocationChange(browser, webProgress, request, location, flags) {
+            // Ignorer les flags qui ne sont pas des vraies navigations
             if (flags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) return;
 
             const url = location.spec;
 
-            let slug = null;
-            let isFictive = false;
-            const fictiveMatch = url.match(/^https?:\/\/BetterSplitView\/(.+)$/);
-            if (fictiveMatch) {
-                slug = fictiveMatch[1];
-                isFictive = true;
-            } else if (url.includes('/splits/') && url.endsWith('.html')) {
-                const legacyMatch = url.match(/\/splits\/(.+)\.html$/);
-                if (legacyMatch) slug = legacyMatch[1];
+            // ── Détection 1 : Hash URL (https://example.com#zensplit=slug) ──
+            // Domaine valide → DNS réussit → on intercepte avant rendu
+            const hashMatch = url.match(/#zensplit=(.+)$/);
+            if (hashMatch) {
+                const slug = hashMatch[1];
+                if (_processing.has(browser)) return;
+                _processing.add(browser);
+                try { browser.stop(); } catch (e) {}
+                handleSplitNavigation(slug, browser);
+                return;
             }
-            if (!slug) return;
 
+            // ── Détection 2 : Legacy file:///splits/slug.html ──
+            if (!url.includes('/splits/') || !url.endsWith('.html')) return;
+
+            // Anti-reentrance
             if (_processing.has(browser)) return;
             _processing.add(browser);
 
-            // Stopper le chargement immédiatement (avant DNS resolution)
+            // Stopper le chargement immédiatement = zéro flash visible
             try { browser.stop(); } catch (e) {}
 
-            // ── Cache hit → redirection synchrone (zéro flash DNS error) ──
-            if (isFictive && _splitCache.has(slug)) {
-                const config = _splitCache.get(slug);
-                const tab = gBrowser.getTabForBrowser(browser);
-                if (tab) {
-                    // Redirection immédiate vers l'URL de gauche (sync, avant DNS)
-                    try {
-                        browser.loadURI(Services.io.newURI(config.left), {
-                            triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-                        });
-                    } catch (e) {
-                        console.warn('[BetterSplitView] Failed to navigate to left URL', e);
-                    }
-                    // Setup async du split (tab2 + splitTabs)
-                    _setupSplit(tab, config, browser);
-                    return;
-                }
+            // Extraire le slug depuis le path file:///.../splits/slug.html
+            const legacyMatch = url.match(/\/splits\/(.+)\.html$/);
+            if (legacyMatch) {
+                handleSplitNavigation(legacyMatch[1], browser);
             }
-
-            // ── Cache miss → fallback async (lecture fichier HTML) ──
-            handleSplitNavigation(slug, browser);
         },
         QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
     };
 
-    /**
-     * Setup async du split : créer tab2 + splitTabs.
-     * Le tab source a déjà été redirigé vers config.left (de façon synchrone).
-     */
-    async function _setupSplit(tab, config, browser) {
-        try {
-            // Créer le tab de droite
-            const tab2 = gBrowser.addTrustedTab(config.right);
-
-            // Attendre que les browsers soient initialisés
-            await new Promise(r => setTimeout(r, 600));
-
-            // Déclencher le split
-            const vs = window.gZenViewSplitter;
-            if (vs) {
-                vs.splitTabs([tab, tab2], config.layout || 'vsep');
-                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'vsep'})`);
-            }
-        } catch (e) {
-            console.error('[BetterSplitView] _setupSplit error', e);
-        } finally {
-            _processing.delete(browser);
-        }
-    }
-
-    /**
-     * Fallback async : lit le fichier HTML, parse la config, redirige et split.
-     * Utilisé pour les cache misses (legacy file:// ou première fois).
-     */
     async function handleSplitNavigation(slug, browser) {
         try {
+            // 1. Récupérer le tab associé au browser
             const tab = gBrowser.getTabForBrowser(browser);
-            if (!tab) { _processing.delete(browser); return; }
+            if (!tab) {
+                _processing.delete(browser);
+                return;
+            }
 
+            // 2. Lire le fichier HTML (splits/{slug}.html)
             const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
             let htmlContent;
             try {
@@ -178,6 +139,7 @@
                 return;
             }
 
+            // 3. Extraire la config JSON depuis le script id="zensplit"
             const match = htmlContent.match(/id="zensplit">\s*([\s\S]*?)<\/script>/);
             if (!match) {
                 console.warn('[BetterSplitView] No zensplit config found in', htmlPath);
@@ -194,10 +156,8 @@
                 return;
             }
 
-            // Mettre à jour le cache pour la prochaine fois
-            _splitCache.set(slug, config);
-
-            // Rediriger vers l'URL de gauche
+            // 4. RÉUTILISER le tab intermédiaire pour l'URL de gauche
+            //    (il a déjà un browser valide, contrairement à un addTrustedTab lazy)
             try {
                 browser.loadURI(Services.io.newURI(config.left), {
                     triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
@@ -206,10 +166,22 @@
                 console.warn('[BetterSplitView] Failed to navigate to left URL', e);
             }
 
-            await _setupSplit(tab, config, browser);
+            // 5. Créer le tab de droite
+            const tab2 = gBrowser.addTrustedTab(config.right);
+
+            // 6. Attendre que les browsers soient initialisés
+            await new Promise(r => setTimeout(r, 600));
+
+            // 7. Déclencher le split avec le tab courant + le nouveau tab
+            const vs = window.gZenViewSplitter;
+            if (vs) {
+                vs.splitTabs([tab, tab2], config.layout || 'vsep');
+                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'vsep'})`);
+            }
 
         } catch (e) {
             console.error('[BetterSplitView] handleSplitNavigation error', e);
+        } finally {
             _processing.delete(browser);
         }
     }
@@ -385,22 +357,21 @@
         const html = generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile);
         await IOUtils.writeUTF8(htmlPath, html);
 
-        // 2b. Mettre à jour le cache en mémoire
-        _splitCache.set(slug, { left: leftUrl, right: rightUrl, layout });
-
-        // 3. Créer le bookmark avec URL fictive (compatible web extensions)
+        // 3. Créer le bookmark avec URL hash (compatible web extensions)
+        //    Format : https://example.com#zensplit=slug
+        //    example.com = domaine IANA réservé, DNS valide → pas d'erreur
         if (opts.createBookmark !== false) {
-            const bookmarkUrl = `https://BetterSplitView/${slug}`;
+            const hashUrl = `https://example.com#zensplit=${slug}`;
             try {
                 await PlacesUtils.bookmarks.insert({
                     parentGuid: PlacesUtils.bookmarks.toolbarGuid,
                     title: name,
-                    url: bookmarkUrl,
+                    url: hashUrl,
                 });
 
-                // 4. Forcer le favicon composite sur l'URL fictive via Places API
+                // Forcer le favicon composite sur l'URL hash via Places API
                 try {
-                    const pageURI = Services.io.newURI(bookmarkUrl);
+                    const pageURI = Services.io.newURI(hashUrl);
                     const faviconURI = Services.io.newURI(pathToFileUrl(pngPath));
                     await new Promise((resolve) => {
                         PlacesUtils.favicons.setAndFetchFaviconForPage(
@@ -426,21 +397,19 @@
         const htmlPath = PathUtils.join(SPLITS_DIR, `${baseName}.html`);
         const pngPath = PathUtils.join(SPLITS_DIR, `${baseName}.png`);
 
-        // 1. Supprimer HTML + PNG + retirer du cache
+        // 1. Supprimer HTML + PNG
         try { await IOUtils.remove(htmlPath); } catch (e) {}
         try {
             if (await IOUtils.exists(pngPath)) {
                 await IOUtils.remove(pngPath);
             }
         } catch (e) {}
-        _splitCache.delete(baseName);
 
-        // 2. Supprimer le bookmark Places correspondant (URL fictive ou legacy file://)
-        const fictiveUrl = `https://BetterSplitView/${baseName}`;
+        // 2. Supprimer le bookmark Places (hash URL ou legacy file://)
+        const hashUrl = `https://example.com#zensplit=${baseName}`;
         const legacyUrl = pathToFileUrl(htmlPath);
         try {
-            // Essayer d'abord l'URL fictive, puis l'ancienne URL file://
-            let bookmark = await PlacesUtils.bookmarks.fetch({ url: fictiveUrl });
+            let bookmark = await PlacesUtils.bookmarks.fetch({ url: hashUrl });
             if (!bookmark) bookmark = await PlacesUtils.bookmarks.fetch({ url: legacyUrl });
             if (bookmark) {
                 await PlacesUtils.bookmarks.remove(bookmark.guid);
@@ -486,27 +455,6 @@
         }
 
         return pairs;
-    }
-
-    /**
-     * Charge tous les splits en mémoire au démarrage.
-     * Permet une lookup synchrone dans onLocationChange.
-     */
-    async function loadCache() {
-        try {
-            const pairs = await listSplitPairs();
-            _splitCache.clear();
-            for (const pair of pairs) {
-                _splitCache.set(pair.slug, {
-                    left: pair.left,
-                    right: pair.right,
-                    layout: pair.layout,
-                });
-            }
-            console.log(`[BetterSplitView] Cache loaded: ${_splitCache.size} split pair(s)`);
-        } catch (e) {
-            console.warn('[BetterSplitView] Cache load failed', e);
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -555,9 +503,6 @@
 
         // S'assurer que splits/ existe
         ensureSplitsDir();
-
-        // Charger le cache en mémoire (async, non-bloquant)
-        loadCache();
 
         console.log('[BetterSplitView] Split Bookmarks Engine initialized');
     }
