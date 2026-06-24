@@ -281,7 +281,7 @@
         await ensureSplitsDir();
 
         const slug = slugify(name);
-        const layout = opts.layout || 'vsep';
+        const layout = opts.layout || 'hsep';
         const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
         const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
 
