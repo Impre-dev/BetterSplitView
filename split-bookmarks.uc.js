@@ -314,11 +314,11 @@
         const jsonConfig = isBridge
             ? JSON.stringify({ url: leftUrl }, null, 4)
             : JSON.stringify({ left: leftUrl, right: rightUrl, layout }, null, 4);
-        const iconLink = isBridge ? '' : `\n    <link rel="icon" type="image/png" href="${iconFile}">`;
         return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">${iconLink}
+    <meta charset="utf-8">
+    <link rel="icon" type="image/png" href="${iconFile}">
     <title>${name}</title>
 </head>
 <body>
@@ -339,8 +339,31 @@
         const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
         const isBridge = !rightUrl;
 
-        // 1. Générer le favicon composite (mode split uniquement)
-        if (!isBridge) {
+        // 1. Générer le favicon
+        if (isBridge) {
+            // Mode pont : fetch le favicon de l'URL de destination et le sauver tel quel
+            try {
+                const favSrc = opts.leftIcon || await fetchFaviconAsObjectUrl(leftUrl);
+                if (favSrc) {
+                    // Charger l'image et la ré-exporter en PNG (taille native)
+                    const img = await loadImage(favSrc);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || 64;
+                    canvas.height = img.naturalHeight || 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+                    const buf = new Uint8Array(await blob.arrayBuffer());
+                    await IOUtils.write(pngPath, buf);
+                    if (favSrc.startsWith('blob:')) URL.revokeObjectURL(favSrc);
+                } else {
+                    console.warn('[BetterSplitView] Could not fetch favicon for bridge');
+                }
+            } catch (e) {
+                console.warn('[BetterSplitView] Bridge favicon failed', e);
+            }
+        } else {
+            // Mode split : favicon composite (moitié gauche + moitié droite)
             try {
                 let leftSrc = opts.leftIcon;
                 let rightSrc = opts.rightIcon;
