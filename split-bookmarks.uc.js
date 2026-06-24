@@ -159,8 +159,8 @@
             // 7. Déclencher le split avec le tab courant + le nouveau tab
             const vs = window.gZenViewSplitter;
             if (vs) {
-                vs.splitTabs([tab, tab2], config.layout || 'hsep');
-                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'hsep'})`);
+                vs.splitTabs([tab, tab2], config.layout || 'vsep');
+                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'vsep'})`);
             }
 
         } catch (e) {
@@ -170,7 +170,7 @@
         }
     }
 
-    async function triggerSplit(leftUrl, rightUrl, layout = 'hsep') {
+    async function triggerSplit(leftUrl, rightUrl, layout = 'vsep') {
         const vs = window.gZenViewSplitter;
         if (!vs) {
             console.error('[BetterSplitView] gZenViewSplitter not available');
@@ -281,7 +281,7 @@
         await ensureSplitsDir();
 
         const slug = slugify(name);
-        const layout = opts.layout || 'hsep';
+        const layout = opts.layout || 'vsep';
         const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
         const pngPath = PathUtils.join(SPLITS_DIR, `${slug}.png`);
 

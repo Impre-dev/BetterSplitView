@@ -303,16 +303,15 @@
         container.appendChild(site2Field);
 
         // Layout radio
-        // vsep = empilés (haut/bas) = Vertical
-        // hsep = côte à côte (gauche/droite) = Horizontal
+        // TESTS CONFIRMÉS : hsep = empilés (haut/bas), vsep = côte à côte (gauche/droite)
         const layoutRow = createHTML('div', { class: 'zensplit-layout-row' });
         const layoutLabel = createHTML('label');
-        layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep' }));
+        layoutLabel.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep' }));
         layoutLabel.appendChild(document.createTextNode(' ↕ Vertical'));
         layoutRow.appendChild(layoutLabel);
 
         const layoutLabel2 = createHTML('label');
-        layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'hsep', checked: 'checked' }));
+        layoutLabel2.appendChild(createHTML('input', { type: 'radio', name: 'zensplit-layout', value: 'vsep', checked: 'checked' }));
         layoutLabel2.appendChild(document.createTextNode(' ↔ Horizontal'));
         layoutRow.appendChild(layoutLabel2);
         container.appendChild(layoutRow);
@@ -368,7 +367,7 @@
         const url1 = document.getElementById('zensplit-url1')?.value?.trim();
         const url2 = document.getElementById('zensplit-url2')?.value?.trim();
         const layoutEl = document.querySelector('input[name="zensplit-layout"]:checked');
-        const layout = layoutEl ? layoutEl.value : 'hsep';
+        const layout = layoutEl ? layoutEl.value : 'vsep';
 
         if (!name || !url1 || !url2) {
             // Feedback visuel simple
