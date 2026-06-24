@@ -156,20 +156,30 @@
             .zensplit-btn-danger {
                 background: #e05252;
                 color: white;
-                padding: 4px 10px;
-                font-size: 12px;
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                font-size: 13px;
                 flex: none;
                 border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
             .zensplit-btn-danger:hover { opacity: 0.88; }
             .zensplit-btn-copy {
                 background: rgba(0,0,0,0.06);
                 color: #555;
-                padding: 4px 10px;
-                font-size: 12px;
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                font-size: 13px;
                 flex: none;
                 border-radius: 6px;
                 margin-right: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
             .zensplit-btn-copy:hover { background: rgba(0,0,0,0.10); }
             .zensplit-btn-copy.copied {
