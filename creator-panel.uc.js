@@ -162,6 +162,20 @@
                 border-radius: 6px;
             }
             .zensplit-btn-danger:hover { opacity: 0.88; }
+            .zensplit-btn-copy {
+                background: rgba(0,0,0,0.06);
+                color: #555;
+                padding: 4px 10px;
+                font-size: 12px;
+                flex: none;
+                border-radius: 6px;
+                margin-right: 6px;
+            }
+            .zensplit-btn-copy:hover { background: rgba(0,0,0,0.10); }
+            .zensplit-btn-copy.copied {
+                background: #4caf50;
+                color: white;
+            }
             .zensplit-manage-list {
                 max-height: 300px;
                 overflow-y: auto;
@@ -480,6 +494,29 @@
             const urlsDiv = createHTML('div', { class: 'zensplit-manage-urls', text: urls });
             info.appendChild(urlsDiv);
             item.appendChild(info);
+
+            // Bouton copier le hash URL (pour extension tuiles)
+            const hashUrl = `https://example.com#zensplit=${pair.slug}`;
+            const copyBtn = createHTML('button', {
+                class: 'zensplit-btn-copy',
+                text: '🔗',
+                title: `Copier l'URL hash : ${hashUrl}`,
+                onclick: async () => {
+                    try {
+                        await navigator.clipboard.writeText(hashUrl);
+                        copyBtn.textContent = '✓';
+                        copyBtn.classList.add('copied');
+                        setTimeout(() => {
+                            copyBtn.textContent = '🔗';
+                            copyBtn.classList.remove('copied');
+                        }, 1200);
+                    } catch (e) {
+                        copyBtn.textContent = '❌';
+                        setTimeout(() => { copyBtn.textContent = '🔗'; }, 1500);
+                    }
+                },
+            });
+            item.appendChild(copyBtn);
 
             const delBtn = createHTML('button', {
                 class: 'zensplit-btn-danger',
