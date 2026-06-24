@@ -66,17 +66,27 @@
         const style = document.createXULElement ? document.createElementNS('http://www.w3.org/1999/xhtml', 'style') : document.createElement('style');
         style.setAttribute('id', 'zensplit-creator-styles');
         style.textContent = `
+            /* === Panel XUL containers — fusionner avec le fond #FBFBFB === */
+            #zensplit-main-panel,
+            #zensplit-manage-panel {
+                background: #FBFBFB !important;
+                -moz-appearance: none !important;
+                border-radius: 10px !important;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+                border: 1px solid rgba(0,0,0,0.06) !important;
+            }
             .zensplit-panel {
                 width: 340px;
                 padding: 16px;
                 font-family: system-ui, -apple-system, sans-serif;
-                color: var(--zen-colors-text-primary, #e0e0e0);
-                background: var(--zen-colors-background-primary, #1a1a1a);
+                color: #333;
+                background: transparent;
             }
             .zensplit-panel h3 {
                 margin: 0 0 12px 0;
                 font-size: 15px;
                 font-weight: 600;
+                color: #222;
             }
             .zensplit-field {
                 margin-bottom: 10px;
@@ -85,22 +95,24 @@
                 display: block;
                 font-size: 12px;
                 margin-bottom: 4px;
-                opacity: 0.8;
+                color: #666;
             }
             .zensplit-field input[type="text"],
             .zensplit-field input[type="url"] {
                 width: 100%;
                 box-sizing: border-box;
-                padding: 7px 10px;
-                border-radius: 6px;
-                border: 1px solid var(--zen-colors-border, #333);
-                background: var(--zen-colors-background-secondary, #252525);
-                color: inherit;
+                padding: 8px 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(0,0,0,0.08);
+                background: linear-gradient(135deg, #f2fff0 0%, #f9fff8 50%, #dcfff9 100%);
+                color: #333;
                 font-size: 13px;
                 outline: none;
+                transition: border-color 0.15s;
             }
             .zensplit-field input:focus {
-                border-color: var(--zen-primary-color, #5b8def);
+                border-color: rgba(91, 141, 239, 0.6);
+                box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.15);
             }
             .zensplit-layout-row {
                 display: flex;
@@ -113,6 +125,7 @@
                 gap: 5px;
                 font-size: 13px;
                 cursor: pointer;
+                color: #555;
             }
             .zensplit-actions {
                 display: flex;
@@ -121,31 +134,33 @@
             }
             .zensplit-btn {
                 flex: 1;
-                padding: 8px 14px;
-                border-radius: 6px;
+                padding: 9px 14px;
+                border-radius: 8px;
                 border: none;
                 font-size: 13px;
                 cursor: pointer;
                 font-weight: 500;
+                transition: opacity 0.15s;
             }
             .zensplit-btn-primary {
-                background: var(--zen-primary-color, #5b8def);
+                background: #4caf50;
                 color: white;
             }
-            .zensplit-btn-primary:hover { opacity: 0.9; }
+            .zensplit-btn-primary:hover { opacity: 0.88; }
             .zensplit-btn-secondary {
-                background: var(--zen-colors-background-tertiary, #333);
-                color: inherit;
+                background: rgba(0,0,0,0.06);
+                color: #555;
             }
-            .zensplit-btn-secondary:hover { opacity: 0.8; }
+            .zensplit-btn-secondary:hover { background: rgba(0,0,0,0.10); }
             .zensplit-btn-danger {
                 background: #e05252;
                 color: white;
                 padding: 4px 10px;
                 font-size: 12px;
                 flex: none;
-                border-radius: 5px;
+                border-radius: 6px;
             }
+            .zensplit-btn-danger:hover { opacity: 0.88; }
             .zensplit-manage-list {
                 max-height: 300px;
                 overflow-y: auto;
@@ -155,7 +170,7 @@
                 align-items: center;
                 gap: 8px;
                 padding: 8px 0;
-                border-bottom: 1px solid var(--zen-colors-border, #2a2a2a);
+                border-bottom: 1px solid rgba(0,0,0,0.06);
             }
             .zensplit-manage-item:last-child { border-bottom: none; }
             .zensplit-manage-info {
@@ -165,24 +180,25 @@
             .zensplit-manage-title {
                 font-size: 13px;
                 font-weight: 500;
+                color: #333;
             }
             .zensplit-manage-urls {
                 font-size: 11px;
-                opacity: 0.6;
+                color: #999;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
             }
             .zensplit-prefill-hint {
                 font-size: 11px;
-                opacity: 0.5;
+                color: #888;
                 margin-top: 2px;
                 font-style: italic;
             }
             .zensplit-empty {
                 text-align: center;
                 padding: 20px;
-                opacity: 0.5;
+                color: #999;
                 font-size: 13px;
             }
             /* Icône du bouton CustomizableUI — hérite de la taille de la toolbar */
