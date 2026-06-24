@@ -341,23 +341,23 @@
 
         // 1. Générer le favicon
         if (isBridge) {
-            // Mode pont : fetch le favicon de l'URL de destination et le sauver tel quel
+            // Mode pont : fetch le favicon de l'URL de destination et le sauver directement
             try {
-                const favSrc = opts.leftIcon || await fetchFaviconAsObjectUrl(leftUrl);
-                if (favSrc) {
-                    // Charger l'image et la ré-exporter en PNG (taille native)
-                    const img = await loadImage(favSrc);
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth || 64;
-                    canvas.height = img.naturalHeight || 64;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-                    const buf = new Uint8Array(await blob.arrayBuffer());
-                    await IOUtils.write(pngPath, buf);
-                    if (favSrc.startsWith('blob:')) URL.revokeObjectURL(favSrc);
+                const url = new URL(leftUrl);
+                const domain = url.hostname;
+                const favUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+                console.log('[BetterSplitView] Bridge favicon fetch:', favUrl);
+                const response = await fetch(favUrl);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    console.log('[BetterSplitView] Favicon blob size:', blob.size, 'type:', blob.type);
+                    if (blob.size > 0) {
+                        const buf = new Uint8Array(await blob.arrayBuffer());
+                        await IOUtils.write(pngPath, buf);
+                        console.log('[BetterSplitView] Bridge favicon saved to', pngPath);
+                    }
                 } else {
-                    console.warn('[BetterSplitView] Could not fetch favicon for bridge');
+                    console.warn('[BetterSplitView] Favicon fetch HTTP', response.status);
                 }
             } catch (e) {
                 console.warn('[BetterSplitView] Bridge favicon failed', e);
