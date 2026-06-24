@@ -469,6 +469,100 @@
         console.log(`[BetterSplitView] Deleted: ${baseName}`);
     }
 
+    /**
+     * Met à jour un split/pont existant.
+     * Si le nom change → nouveau slug → supprime l'ancien fichier + recréé.
+     * Si le nom ne change pas → régénère le contenu du même fichier.
+     */
+    async function updateSplitPair(oldSlug, name, leftUrl, rightUrl, opts = {}) {
+        const newSlug = slugify(name);
+
+        // Si le slug change → supprimer l'ancien puis recréer
+        if (newSlug !== oldSlug) {
+            await deleteSplitPair(`${oldSlug}.html`);
+            return createSplitPair(name, leftUrl, rightUrl, { ...opts, createBookmark: true });
+        }
+
+        // Même slug → régénérer le contenu
+        await ensureSplitsDir();
+        const htmlPath = PathUtils.join(SPLITS_DIR, `${oldSlug}.html`);
+        const pngPath = PathUtils.join(SPLITS_DIR, `${oldSlug}.png`);
+        const layout = opts.layout || 'vsep';
+        const isBridge = !rightUrl;
+
+        // 1. Régénérer le favicon
+        if (isBridge) {
+            try {
+                const url = new URL(leftUrl);
+                let faviconBytes = null;
+                if (url.protocol === 'file:') {
+                    const localPath = fileUrlToPath(leftUrl);
+                    if (await IOUtils.exists(localPath)) {
+                        const html = await IOUtils.readUTF8(localPath);
+                        const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i)
+                            || html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i);
+                        if (iconMatch) {
+                            let iconHref = iconMatch[1];
+                            if (iconHref.startsWith('./')) iconHref = iconHref.slice(2);
+                            if (!iconHref.startsWith('http') && !iconHref.startsWith('data:')) {
+                                const dir = localPath.replace(/[/\\][^/\\]+$/, '');
+                                const iconPath = PathUtils.join(dir, iconHref.replace(/\//g, '\\'));
+                                if (await IOUtils.exists(iconPath)) {
+                                    faviconBytes = new Uint8Array(await IOUtils.read(iconPath));
+                                }
+                            }
+                        }
+                    }
+                } else if (url.hostname) {
+                    const favUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
+                    const response = await fetch(favUrl);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        if (blob.size > 0) faviconBytes = new Uint8Array(await blob.arrayBuffer());
+                    }
+                }
+                if (faviconBytes) {
+                    await IOUtils.write(pngPath, faviconBytes);
+                } else {
+                    try { if (await IOUtils.exists(pngPath)) await IOUtils.remove(pngPath); } catch (e) {}
+                }
+            } catch (e) {
+                console.warn('[BetterSplitView] Update favicon failed', e);
+            }
+        } else {
+            try {
+                const leftSrc = await fetchFaviconAsObjectUrl(leftUrl);
+                const rightSrc = await fetchFaviconAsObjectUrl(rightUrl);
+                if (leftSrc && rightSrc) {
+                    await createCompositeFavicon(leftSrc, rightSrc, pngPath);
+                }
+                if (leftSrc && leftSrc.startsWith('blob:')) URL.revokeObjectURL(leftSrc);
+                if (rightSrc && rightSrc.startsWith('blob:')) URL.revokeObjectURL(rightSrc);
+            } catch (e) {
+                console.warn('[BetterSplitView] Update favicon failed', e);
+            }
+        }
+
+        // 2. Régénérer le HTML
+        const iconFile = `${oldSlug}.png`;
+        const html = generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile);
+        await IOUtils.writeUTF8(htmlPath, html);
+
+        // 3. Met à jour le titre du bookmark
+        const fileUrl = pathToFileUrl(htmlPath);
+        try {
+            const bookmark = await PlacesUtils.bookmarks.fetch({ url: fileUrl });
+            if (bookmark) {
+                await PlacesUtils.bookmarks.update(bookmark.guid, { title: name });
+            }
+        } catch (e) {
+            console.warn('[BetterSplitView] Bookmark title update failed', e);
+        }
+
+        console.log(`[BetterSplitView] Updated: ${oldSlug} (${name})`);
+        return { slug: oldSlug, htmlPath, pngPath };
+    }
+
     async function listSplitPairs() {
         await ensureSplitsDir();
 
@@ -515,6 +609,9 @@
 
         /** Déclenche un split manuellement (2 URLs arbitraires) */
         triggerSplit,
+
+        /** Met à jour un split/pont existant (nouveau contenu, même ou nouveau slug) */
+        updateSplitPair,
 
         /** Supprime une paire (HTML + PNG + bookmark Places) */
         deleteSplitPair,

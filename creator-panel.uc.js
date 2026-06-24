@@ -27,6 +27,7 @@
     let toolbarButton = null;
     let mainPanel = null;
     let managePanel = null;
+    let editingSlug = null;
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -201,11 +202,16 @@
             .zensplit-manage-info {
                 flex: 1;
                 min-width: 0;
+                cursor: pointer;
+            }
+            .zensplit-manage-info:hover .zensplit-manage-title {
+                color: #4caf50;
             }
             .zensplit-manage-title {
                 font-size: 13px;
                 font-weight: 500;
                 color: #333;
+                transition: color 0.15s;
             }
             .zensplit-manage-urls {
                 font-size: 11px;
@@ -297,6 +303,10 @@
             mainPanel = buildMainPanel();
             document.getElementById('mainPopupSet')?.appendChild(mainPanel) || document.body.appendChild(mainPanel);
         }
+        // Reset edit mode quand on ouvre depuis le bouton toolbar
+        editingSlug = null;
+        const createBtn = document.querySelector('.zensplit-btn-primary');
+        if (createBtn) createBtn.textContent = '✨ Créer';
         // Pre-fill depuis le split actif
         preFillFromActiveSplit();
         // Ouvrir à côté du bouton
@@ -306,6 +316,37 @@
             const btn = getToolbarButton();
             if (btn) mainPanel.openPopup(btn, 'after_end', 0, 0, false, false);
         }
+    }
+
+    function openEditPanel(pair) {
+        managePanel?.hidePopup();
+        if (!mainPanel) {
+            mainPanel = buildMainPanel();
+            document.getElementById('mainPopupSet')?.appendChild(mainPanel) || document.body.appendChild(mainPanel);
+        }
+        // Pré-remplir avec les données du pair
+        document.getElementById('zensplit-name').value = pair.title || '';
+        if (pair.url) {
+            // Mode pont
+            document.getElementById('zensplit-url1').value = pair.url;
+            document.getElementById('zensplit-url2').value = '';
+        } else {
+            document.getElementById('zensplit-url1').value = pair.left || '';
+            document.getElementById('zensplit-url2').value = pair.right || '';
+        }
+        // Set layout radio
+        const layoutVal = pair.layout || 'vsep';
+        const layoutRadio = document.querySelector(`input[name="zensplit-layout"][value="${layoutVal}"]`);
+        if (layoutRadio) layoutRadio.checked = true;
+
+        // Activer le mode edit
+        editingSlug = pair.slug;
+        const createBtn = document.querySelector('.zensplit-btn-primary');
+        if (createBtn) createBtn.textContent = '✏️ Modifier';
+
+        // Ouvrir le panel
+        const btn = getToolbarButton();
+        if (btn) mainPanel.openPopup(btn, 'after_end', 0, 0, false, false);
     }
 
     function buildMainPanel() {
@@ -415,27 +456,49 @@
             return;
         }
 
-        // Feedback loading
         const createBtn = document.querySelector('.zensplit-btn-primary');
-        if (createBtn) createBtn.textContent = '⏳ Création...';
 
-        try {
-            await api.createSplitPair(name, url1, url2, { layout });
-            if (createBtn) {
-                createBtn.textContent = '✅ Créé !';
-                setTimeout(() => {
-                    createBtn.textContent = '✨ Créer';
-                    mainPanel?.hidePopup();
-                    // Reset fields
-                    document.getElementById('zensplit-name').value = '';
-                    document.getElementById('zensplit-url1').value = '';
-                    document.getElementById('zensplit-url2').value = '';
-                }, 1000);
+        if (editingSlug) {
+            // ── Mode modification ──
+            if (createBtn) createBtn.textContent = '⏳ Modification...';
+            try {
+                await api.updateSplitPair(editingSlug, name, url1, url2, { layout });
+                if (createBtn) {
+                    createBtn.textContent = '✅ Modifié !';
+                    setTimeout(() => {
+                        createBtn.textContent = '✨ Créer';
+                        editingSlug = null;
+                        mainPanel?.hidePopup();
+                        document.getElementById('zensplit-name').value = '';
+                        document.getElementById('zensplit-url1').value = '';
+                        document.getElementById('zensplit-url2').value = '';
+                    }, 1000);
+                }
+            } catch (e) {
+                console.error('[BetterSplitView] Update failed', e);
+                if (createBtn) createBtn.textContent = '❌ Erreur';
+                setTimeout(() => { if (createBtn) createBtn.textContent = '✏️ Modifier'; }, 2000);
             }
-        } catch (e) {
-            console.error('[BetterSplitView] Create failed', e);
-            if (createBtn) createBtn.textContent = '❌ Erreur';
-            setTimeout(() => { if (createBtn) createBtn.textContent = '✨ Créer'; }, 2000);
+        } else {
+            // ── Mode création ──
+            if (createBtn) createBtn.textContent = '⏳ Création...';
+            try {
+                await api.createSplitPair(name, url1, url2, { layout });
+                if (createBtn) {
+                    createBtn.textContent = '✅ Créé !';
+                    setTimeout(() => {
+                        createBtn.textContent = '✨ Créer';
+                        mainPanel?.hidePopup();
+                        document.getElementById('zensplit-name').value = '';
+                        document.getElementById('zensplit-url1').value = '';
+                        document.getElementById('zensplit-url2').value = '';
+                    }, 1000);
+                }
+            } catch (e) {
+                console.error('[BetterSplitView] Create failed', e);
+                if (createBtn) createBtn.textContent = '❌ Erreur';
+                setTimeout(() => { if (createBtn) createBtn.textContent = '✨ Créer'; }, 2000);
+            }
         }
     }
 
@@ -498,6 +561,7 @@
             const item = createHTML('div', { class: 'zensplit-manage-item' });
 
             const info = createHTML('div', { class: 'zensplit-manage-info' });
+            info.addEventListener('click', () => openEditPanel(pair));
             info.appendChild(createHTML('div', { class: 'zensplit-manage-title', text: pair.title || pair.slug }));
 
             const urls = pair.left && pair.right
