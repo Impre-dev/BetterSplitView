@@ -231,12 +231,12 @@
 
     async function createCompositeFavicon(leftSrc, rightSrc, outputPath) {
         const canvas = document.createElement('canvas');
-        canvas.width = 32;
+        canvas.width = 16;
         canvas.height = 16;
         const ctx = canvas.getContext('2d');
 
         // Fond transparent
-        ctx.clearRect(0, 0, 32, 16);
+        ctx.clearRect(0, 0, 16, 16);
 
         // leftSrc / rightSrc peuvent être des file:///, objectURL, ou data: URL
         const [leftImg, rightImg] = await Promise.all([
@@ -244,27 +244,34 @@
             loadImage(rightSrc).catch(() => null),
         ]);
 
-        // Dessiner côte à côte (avec fallback si une image manque)
+        // Découper chaque favicon verticalement en 2 :
+        // - Moitié gauche du favicon A → partie gauche du canvas (0→8)
+        // - Moitié droite du favicon B → partie droite du canvas (8→16)
         if (leftImg) {
-            ctx.drawImage(leftImg, 0, 0, 16, 16);
+            const lw = leftImg.naturalWidth;
+            const lh = leftImg.naturalHeight;
+            // Source : moitié gauche (0, 0, lw/2, lh) → Dest : (0, 0, 8, 16)
+            ctx.drawImage(leftImg, 0, 0, lw / 2, lh, 0, 0, 8, 16);
         } else {
-            // Placeholder : demi-carré coloré
             ctx.fillStyle = '#666';
-            ctx.fillRect(0, 0, 16, 16);
+            ctx.fillRect(0, 0, 8, 16);
         }
         if (rightImg) {
-            ctx.drawImage(rightImg, 16, 0, 16, 16);
+            const rw = rightImg.naturalWidth;
+            const rh = rightImg.naturalHeight;
+            // Source : moitié droite (rw/2, 0, rw/2, rh) → Dest : (8, 0, 8, 16)
+            ctx.drawImage(rightImg, rw / 2, 0, rw / 2, rh, 8, 0, 8, 16);
         } else {
             ctx.fillStyle = '#999';
-            ctx.fillRect(16, 0, 16, 16);
+            ctx.fillRect(8, 0, 8, 16);
         }
 
-        // Séparateur visuel subtil
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        // Séparateur visuel subtil au centre
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(16, 0);
-        ctx.lineTo(16, 16);
+        ctx.moveTo(8, 0);
+        ctx.lineTo(8, 16);
         ctx.stroke();
 
         // Exporter en PNG
