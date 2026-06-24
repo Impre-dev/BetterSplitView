@@ -357,32 +357,17 @@
         const html = generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile);
         await IOUtils.writeUTF8(htmlPath, html);
 
-        // 3. Créer le bookmark avec URL hash (compatible web extensions)
-        //    Format : https://example.com#zensplit=slug
-        //    example.com = domaine IANA réservé, DNS valide → pas d'erreur
+        // 3. Créer le bookmark (file:// — garde le favicon HTML <link rel="icon">)
+        //    L'URL hash (https://example.com#zensplit=slug) est une voie D'ACCÈS
+        //    supplémentaire pour les extensions web, pas l'URL du favori.
         if (opts.createBookmark !== false) {
-            const hashUrl = `https://example.com#zensplit=${slug}`;
+            const fileUrl = pathToFileUrl(htmlPath);
             try {
                 await PlacesUtils.bookmarks.insert({
                     parentGuid: PlacesUtils.bookmarks.toolbarGuid,
                     title: name,
-                    url: hashUrl,
+                    url: fileUrl,
                 });
-
-                // Forcer le favicon composite sur l'URL hash via Places API
-                try {
-                    const pageURI = Services.io.newURI(hashUrl);
-                    const faviconURI = Services.io.newURI(pathToFileUrl(pngPath));
-                    await new Promise((resolve) => {
-                        PlacesUtils.favicons.setAndFetchFaviconForPage(
-                            pageURI, faviconURI, false,
-                            PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-                            resolve
-                        );
-                    });
-                } catch (e) {
-                    console.warn('[BetterSplitView] Favicon set failed', e);
-                }
             } catch (e) {
                 console.warn('[BetterSplitView] Bookmark creation failed', e);
             }
@@ -405,12 +390,10 @@
             }
         } catch (e) {}
 
-        // 2. Supprimer le bookmark Places (hash URL ou legacy file://)
-        const hashUrl = `https://example.com#zensplit=${baseName}`;
-        const legacyUrl = pathToFileUrl(htmlPath);
+        // 2. Supprimer le bookmark Places correspondant
+        const fileUrl = pathToFileUrl(htmlPath);
         try {
-            let bookmark = await PlacesUtils.bookmarks.fetch({ url: hashUrl });
-            if (!bookmark) bookmark = await PlacesUtils.bookmarks.fetch({ url: legacyUrl });
+            const bookmark = await PlacesUtils.bookmarks.fetch({ url: fileUrl });
             if (bookmark) {
                 await PlacesUtils.bookmarks.remove(bookmark.guid);
             }
