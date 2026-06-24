@@ -88,8 +88,17 @@
 
             const url = location.spec;
 
-            // Détecter les fichiers HTML dans splits/
-            if (!url.includes('/splits/') || !url.endsWith('.html')) return;
+            // Détection : URL fictive (https://BetterSplitView/slug) OU legacy file:///splits/slug.html
+            let slug = null;
+            const fictiveMatch = url.match(/^https?:\/\/BetterSplitView\/(.+)$/);
+            if (fictiveMatch) {
+                slug = fictiveMatch[1];
+            } else if (url.includes('/splits/') && url.endsWith('.html')) {
+                // Legacy : extraire le slug depuis file:///path/to/splits/slug.html
+                const legacyMatch = url.match(/\/splits\/(.+)\.html$/);
+                if (legacyMatch) slug = legacyMatch[1];
+            }
+            if (!slug) return;
 
             // Anti-reentrance
             if (_processing.has(browser)) return;
@@ -98,12 +107,12 @@
             // Stopper le chargement immédiatement = zéro flash visible
             try { browser.stop(); } catch (e) {}
 
-            handleSplitNavigation(url, browser);
+            handleSplitNavigation(slug, browser);
         },
         QueryInterface: ChromeUtils.generateQI(['nsIWebProgressListener', 'nsISupportsWeakReference']),
     };
 
-    async function handleSplitNavigation(htmlUrl, browser) {
+    async function handleSplitNavigation(slug, browser) {
         try {
             // 1. Récupérer le tab associé au browser
             const tab = gBrowser.getTabForBrowser(browser);
@@ -112,13 +121,13 @@
                 return;
             }
 
-            // 2. Lire le fichier HTML
-            const filePath = fileUrlToPath(htmlUrl);
+            // 2. Lire le fichier HTML de config (splits/{slug}.html)
+            const htmlPath = PathUtils.join(SPLITS_DIR, `${slug}.html`);
             let htmlContent;
             try {
-                htmlContent = await IOUtils.readUTF8(filePath);
+                htmlContent = await IOUtils.readUTF8(htmlPath);
             } catch (e) {
-                console.warn('[BetterSplitView] Cannot read', htmlUrl, e);
+                console.warn('[BetterSplitView] Cannot read', htmlPath, e);
                 _processing.delete(browser);
                 return;
             }
@@ -341,15 +350,30 @@
         const html = generateSplitHTML(name, leftUrl, rightUrl, layout, iconFile);
         await IOUtils.writeUTF8(htmlPath, html);
 
-        // 3. Créer le bookmark (optionnel, activé par défaut)
+        // 3. Créer le bookmark avec URL fictive (compatible web extensions)
         if (opts.createBookmark !== false) {
-            const fileUrl = pathToFileUrl(htmlPath);
+            const bookmarkUrl = `https://BetterSplitView/${slug}`;
             try {
                 await PlacesUtils.bookmarks.insert({
                     parentGuid: PlacesUtils.bookmarks.toolbarGuid,
                     title: name,
-                    url: fileUrl,
+                    url: bookmarkUrl,
                 });
+
+                // 4. Forcer le favicon composite sur l'URL fictive via Places API
+                try {
+                    const pageURI = Services.io.newURI(bookmarkUrl);
+                    const faviconURI = Services.io.newURI(pathToFileUrl(pngPath));
+                    await new Promise((resolve) => {
+                        PlacesUtils.favicons.setAndFetchFaviconForPage(
+                            pageURI, faviconURI, false,
+                            PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
+                            resolve
+                        );
+                    });
+                } catch (e) {
+                    console.warn('[BetterSplitView] Favicon set failed', e);
+                }
             } catch (e) {
                 console.warn('[BetterSplitView] Bookmark creation failed', e);
             }
@@ -372,10 +396,13 @@
             }
         } catch (e) {}
 
-        // 2. Supprimer le bookmark Places correspondant
-        const fileUrl = pathToFileUrl(htmlPath);
+        // 2. Supprimer le bookmark Places correspondant (URL fictive ou legacy file://)
+        const fictiveUrl = `https://BetterSplitView/${baseName}`;
+        const legacyUrl = pathToFileUrl(htmlPath);
         try {
-            const bookmark = await PlacesUtils.bookmarks.fetch({ url: fileUrl });
+            // Essayer d'abord l'URL fictive, puis l'ancienne URL file://
+            let bookmark = await PlacesUtils.bookmarks.fetch({ url: fictiveUrl });
+            if (!bookmark) bookmark = await PlacesUtils.bookmarks.fetch({ url: legacyUrl });
             if (bookmark) {
                 await PlacesUtils.bookmarks.remove(bookmark.guid);
             }
