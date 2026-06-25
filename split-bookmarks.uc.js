@@ -202,27 +202,72 @@
                 return;
             }
 
-            // 5. RÉUTILISER le tab intermédiaire pour l'URL de gauche
-            //    (il a déjà un browser valide, contrairement à un addTrustedTab lazy)
-            try {
-                browser.loadURI(Services.io.newURI(config.left), {
-                    triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-                });
-            } catch (e) {
-                console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+            // 5. Absorption : chercher des tabs solo existants avec les mêmes URLs
+            let existingLeft = null, existingRight = null;
+            for (const t of gBrowser.tabs) {
+                if (t === tab) continue;
+                try {
+                    const tUrl = t.linkedBrowser?.currentURI?.spec;
+                    if (!tUrl) continue;
+                    if (tUrl === config.left && !existingLeft) existingLeft = t;
+                    if (tUrl === config.right && !existingRight) existingRight = t;
+                } catch (e) {}
             }
 
-            // 6. Créer le tab de droite
-            const tab2 = gBrowser.addTrustedTab(config.right);
-
-            // 7. Attendre que les browsers soient initialisés
-            await new Promise(r => setTimeout(r, 600));
-
-            // 8. Déclencher le split avec le tab courant + le nouveau tab
             const vs = window.gZenViewSplitter;
-            if (vs) {
-                vs.splitTabs([tab, tab2], config.layout || 'vsep');
-                console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${config.layout || 'vsep'})`);
+            const layout = config.layout || 'vsep';
+
+            if (existingLeft && existingRight) {
+                // Cas A : les 2 tabs existent déjà en solo → absorber les 2
+                console.log('[BetterSplitView] Absorbing both existing tabs');
+                if (vs) {
+                    vs.splitTabs([existingLeft, existingRight], layout);
+                    gBrowser.selectedTab = existingLeft;
+                    console.log(`[BetterSplitView] Split (absorbed both): ${config.left} | ${config.right} (${layout})`);
+                }
+                gBrowser.removeTab(tab);
+            } else if (existingLeft) {
+                // Cas B : seulement left existe → absorber left + créer right
+                console.log('[BetterSplitView] Absorbing left, creating right');
+                const tab2 = gBrowser.addTrustedTab(config.right);
+                await new Promise(r => setTimeout(r, 600));
+                if (vs) {
+                    vs.splitTabs([existingLeft, tab2], layout);
+                    gBrowser.selectedTab = existingLeft;
+                    console.log(`[BetterSplitView] Split (absorbed left): ${config.left} | ${config.right} (${layout})`);
+                }
+                gBrowser.removeTab(tab);
+            } else if (existingRight) {
+                // Cas C : seulement right existe → créer left sur tab courant + absorber right
+                console.log('[BetterSplitView] Absorbing right, creating left');
+                try {
+                    browser.loadURI(Services.io.newURI(config.left), {
+                        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+                    });
+                } catch (e) {
+                    console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+                }
+                await new Promise(r => setTimeout(r, 400));
+                if (vs) {
+                    vs.splitTabs([tab, existingRight], layout);
+                    console.log(`[BetterSplitView] Split (absorbed right): ${config.left} | ${config.right} (${layout})`);
+                }
+            } else {
+                // Cas D : aucun tab existant → créer split normal
+                try {
+                    browser.loadURI(Services.io.newURI(config.left), {
+                        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+                    });
+                } catch (e) {
+                    console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+                }
+
+                const tab2 = gBrowser.addTrustedTab(config.right);
+                await new Promise(r => setTimeout(r, 600));
+                if (vs) {
+                    vs.splitTabs([tab, tab2], layout);
+                    console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${layout})`);
+                }
             }
 
         } catch (e) {
