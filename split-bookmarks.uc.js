@@ -156,7 +156,40 @@
                 return;
             }
 
-            // 4. Bridge mode : URL seule, pas de split
+            // 4. Détection dedup : le split/pont est-il déjà ouvert ?
+            if (!config.right && config.url) {
+                // Bridge : chercher un tab avec la même URL
+                for (const t of gBrowser.tabs) {
+                    if (t === tab) continue;
+                    try {
+                        if (t.linkedBrowser?.currentURI?.spec === config.url) {
+                            console.log('[BetterSplitView] Bridge already open, switching');
+                            gBrowser.selectedTab = t;
+                            gBrowser.removeTab(tab);
+                            return;
+                        }
+                    } catch (e) {}
+                }
+            } else if (config.left && config.right) {
+                // Split : chercher un split view existant avec les mêmes URLs
+                const vs = window.gZenViewSplitter;
+                if (vs && vs._data) {
+                    for (const view of vs._data) {
+                        if (!view.tabs || view.tabs.length < 2) continue;
+                        try {
+                            const tabUrls = view.tabs.map(t => t.linkedBrowser?.currentURI?.spec).filter(Boolean);
+                            if (tabUrls.includes(config.left) && tabUrls.includes(config.right)) {
+                                console.log('[BetterSplitView] Split already open, switching');
+                                gBrowser.selectedTab = view.tabs[0];
+                                gBrowser.removeTab(tab);
+                                return;
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            // 5. Bridge mode : URL seule, pas de split
             if (!config.right && config.url) {
                 try {
                     browser.loadURI(Services.io.newURI(config.url), {
