@@ -67,21 +67,24 @@
         const style = document.createXULElement ? document.createElementNS('http://www.w3.org/1999/xhtml', 'style') : document.createElement('style');
         style.setAttribute('id', 'zensplit-creator-styles');
         style.textContent = `
-            /* === Panel XUL containers — fusionner avec le fond #FBFBFB === */
+            /* === Panel — fond blanc via ::part(content) du shadow DOM === */
+            #zensplit-main-panel::part(content),
+            #zensplit-manage-panel::part(content) {
+                background: #FFFFFF !important;
+            }
+            /* Variables en fallback (bat le thème Zen par spécificité d'ID) */
             #zensplit-main-panel,
             #zensplit-manage-panel {
-                background: #FBFBFB !important;
-                -moz-appearance: none !important;
-                border-radius: 10px !important;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
-                border: 1px solid rgba(0,0,0,0.06) !important;
+                --panel-background: #FFFFFF !important;
+                --arrowpanel-background: #FFFFFF !important;
             }
             .zensplit-panel {
                 width: 340px;
                 padding: 16px;
                 font-family: system-ui, -apple-system, sans-serif;
                 color: #333;
-                background: transparent;
+                background: #FFFFFF !important;
+                border-radius: 10px;
             }
             .zensplit-panel h3 {
                 margin: 0 0 12px 0;
