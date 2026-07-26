@@ -22,7 +22,7 @@
     //  Dépendances : window.gZenViewSplitter (pour pre-remplissage)
     // ═══════════════════════════════════════════════════════════════════════
 
-    const SVG_ICON = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="%2342414D" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg>`;
+    const SVG_ICON = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg>`;
 
     let toolbarButton = null;
     let mainPanel = null;
@@ -232,10 +232,12 @@
                 color: #999;
                 font-size: 13px;
             }
-            /* Icône du bouton CustomizableUI — hérite de la taille de la toolbar */
+            /* Icône du bouton CustomizableUI — hérite de la couleur et taille du thème */
             #zensplit-creator-btn .toolbarbutton-icon {
                 width: auto !important;
                 height: auto !important;
+                -moz-context-properties: stroke !important;
+                stroke: var(--toolbarbutton-icon-fill, currentColor) !important;
             }
             #zensplit-creator-btn {
                 list-style-image: url('${SVG_ICON}');
