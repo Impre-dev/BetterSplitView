@@ -6,22 +6,20 @@
 /* ═══ Migré depuis Custom.css ═══ */
 
 /* Fixe split view */
-#tabbrowser-tabpanels[zen-split-view="true"] {
-  margin-top: 0 !important;
-  margin-right: 10px;
+#tabbrowser-tabpanels[zen-split-view='true'] {
+  /* margin-top: 0 !important; */
+  margin-right: 1px;
 }
 
 /* Indicateur de fenêtre focus pendant un split */
-:root:not([inDOMFullscreen="true"])
-#tabbrowser-tabpanels[zen-split-view="true"]
-.browserSidebarContainer.deck-selected {
+:root:not([inDOMFullscreen='true']) #tabbrowser-tabpanels[zen-split-view='true'] .browserSidebarContainer.deck-selected {
   &:not(.zen-glance-overlay) {
     outline: none !important;
     border-bottom: none !important;
     position: relative;
   }
   &:not(.zen-glance-overlay)::after {
-    content: "";
+    content: '';
     position: absolute;
     left: 0;
     right: 0;
@@ -36,9 +34,7 @@
 
 /* Repositionner la box native : top-center → bottom-right */
 /* ═══ AJUSTER ICI : bottom = distance du bas, right = distance de la droite ═══ */
-:root:not([inDOMFullscreen="true"])
-#tabbrowser-tabpanels[zen-split-view="true"]
-.zen-view-splitter-header-container {
+:root:not([inDOMFullscreen='true']) #tabbrowser-tabpanels[zen-split-view='true'] .zen-view-splitter-header-container {
   top: auto !important;
   bottom: 37px !important;
   right: 27.5px !important;
@@ -85,4 +81,21 @@
   width: 16px !important;
   height: 16px !important;
   pointer-events: none !important;
+}
+
+/* ═══ SPLIT VIEW — Séparation fine (3px) ═══ */
+
+/* Gap visuel entre les vues : 8px → 3px.
+   :has(+ sibling) ne cible que les panes suivis d'un autre pane,
+   pour préserver la marge extérieure au bord de fenêtre. */
+#tabbrowser-tabpanels[zen-split-view='true'] .browserSidebarContainer[zen-split]:has(+ .browserSidebarContainer[zen-split]) {
+  margin-right: 3px !important;
+}
+
+/* Hitbox du splitter : 8px → 3px, calée sur le gap.
+   Le div est positionné par inset % (left), on le décale de sa largeur
+   pour qu'il couvre le gap à gauche de la frontière. */
+#zen-splitview-overlay .zen-split-view-splitter[orient='vertical'] {
+  width: 3px !important;
+  transform: translateX(-100%);
 }
