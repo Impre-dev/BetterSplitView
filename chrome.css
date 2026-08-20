@@ -6,28 +6,15 @@
 /* ═══ Migré depuis Custom.css ═══ */
 
 /* Fixe split view */
-#tabbrowser-tabpanels[zen-split-view='true'] {
-  /* margin-top: 0 !important; */
+/* #tabbrowser-tabpanels[zen-split-view='true'] {
+  margin-top: 0 !important;
   margin-right: 1px;
-}
+} */
 
-/* Indicateur de fenêtre focus pendant un split */
-:root:not([inDOMFullscreen='true']) #tabbrowser-tabpanels[zen-split-view='true'] .browserSidebarContainer.deck-selected {
-  &:not(.zen-glance-overlay) {
-    outline: none !important;
-    border-bottom: none !important;
-    position: relative;
-  }
-  &:not(.zen-glance-overlay)::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 5px;
-    background: linear-gradient(135deg, #f2fff0 0%, #f9fff8 50%, #dcfff9 100%);
-    pointer-events: none;
-  }
+/* Neutraliser l'indicateur natif de focus de Zen (outline/border-bottom) */
+:root:not([inDOMFullscreen='true']) #tabbrowser-tabpanels[zen-split-view='true'] .browserSidebarContainer[zen-split] {
+  outline: none !important;
+  border-bottom: none !important;
 }
 
 /* ═══ SPLIT VIEW — Floating Box ═══ */
