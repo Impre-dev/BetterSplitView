@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name           BetterSplitView — Split Bookmarks Engine
-// @version        1.0.0
+// @version        1.1.0
 // @description    TabsProgressListener interception + Canvas favicons + triggerSplit + API
 // @author         Impre
 // @include        main
@@ -76,6 +76,21 @@
       await IOUtils.makeDirectory(SPLITS_DIR, { recursive: true, createParents: true });
     } catch (e) {
       // Peut déjà exister → ignoré
+    }
+  }
+
+  /**
+   * Anti-fusion : un tab membre d'un split view (n'importe lequel) n'est
+   * jamais absorbé ni réutilisé comme pane. getSplitNodeFromTab est l'API
+   * déjà validée par applySplitRatio (retourne le node ou null).
+   */
+  function isTabInSplit(t) {
+    const vs = window.gZenViewSplitter;
+    if (!vs || typeof vs.getSplitNodeFromTab !== 'function') return false;
+    try {
+      return !!vs.getSplitNodeFromTab(t);
+    } catch (e) {
+      return false;
     }
   }
 
@@ -198,25 +213,41 @@
         }
       }
 
+      // Anti-fusion : le tab déclencheur est-il un pane d'un split actif ?
+      // Si oui, il ne sera jamais navigué ni réutilisé comme pane.
+      const triggerIsPane = isTabInSplit(tab);
+
       // 5. Bridge mode : URL seule, pas de split
       if (!config.right && config.url) {
-        try {
-          browser.loadURI(Services.io.newURI(config.url), {
-            triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-          });
-          console.log(`[BetterSplitView] Bridge: ${config.url}`);
-        } catch (e) {
-          console.warn('[BetterSplitView] Bridge navigation failed', e);
+        if (triggerIsPane) {
+          // Déclencheur = pane d'un split actif → jamais navigué :
+          // bridge dans un tab frais, le split existant reste intact
+          const bridgeTab = gBrowser.addTrustedTab(config.url);
+          gBrowser.selectedTab = bridgeTab;
+          gBrowser.removeTab(tab);
+          console.log(`[BetterSplitView] Bridge (fresh tab, trigger was a split pane): ${config.url}`);
+        } else {
+          try {
+            browser.loadURI(Services.io.newURI(config.url), {
+              triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+            });
+            console.log(`[BetterSplitView] Bridge: ${config.url}`);
+          } catch (e) {
+            console.warn('[BetterSplitView] Bridge navigation failed', e);
+          }
         }
         return;
       }
 
-      // 5. Absorption : chercher des tabs solo existants avec les mêmes URLs
+      // 5. Absorption : chercher des tabs SOLO existants avec les mêmes URLs.
+      // Un tab membre d'un split (n'importe lequel) n'est jamais absorbé —
+      // on ne vole pas le pane d'un autre split view.
       let existingLeft = null,
         existingRight = null;
       for (const t of gBrowser.tabs) {
         if (t === tab) continue;
         try {
+          if (isTabInSplit(t)) continue;
           const tUrl = t.linkedBrowser?.currentURI?.spec;
           if (!tUrl) continue;
           if (tUrl === config.left && !existingLeft) existingLeft = t;
@@ -253,37 +284,58 @@
         }
         gBrowser.removeTab(tab);
       } else if (existingRight) {
-        // Cas C : seulement right existe → créer left sur tab courant + absorber right
+        // Cas C : seulement right existe en solo → absorber right + créer left
         console.log('[BetterSplitView] Absorbing right, creating left');
-        try {
-          browser.loadURI(Services.io.newURI(config.left), {
-            triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-          });
-        } catch (e) {
-          console.warn('[BetterSplitView] Failed to navigate to left URL', e);
-        }
-        await new Promise((r) => setTimeout(r, 400));
-        if (vs) {
-          vs.splitTabs([tab, existingRight], layout);
-          setTimeout(() => applySplitRatio(tab, ratio), 100);
-          console.log(`[BetterSplitView] Split (absorbed right): ${config.left} | ${config.right} (${layout})`);
+        if (triggerIsPane) {
+          // Déclencheur = pane d'un split actif → left dans un tab frais
+          const tab1 = gBrowser.addTrustedTab(config.left);
+          await new Promise((r) => setTimeout(r, 600));
+          if (vs) {
+            vs.splitTabs([tab1, existingRight], layout);
+            setTimeout(() => applySplitRatio(tab1, ratio), 100);
+            gBrowser.selectedTab = tab1;
+          }
+          gBrowser.removeTab(tab);
+          console.log(`[BetterSplitView] Split (fresh left + absorbed right): ${config.left} | ${config.right} (${layout})`);
+        } else {
+          try {
+            browser.loadURI(Services.io.newURI(config.left), {
+              triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+            });
+          } catch (e) {
+            console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+          }
+          await new Promise((r) => setTimeout(r, 400));
+          if (vs) {
+            vs.splitTabs([tab, existingRight], layout);
+            setTimeout(() => applySplitRatio(tab, ratio), 100);
+            console.log(`[BetterSplitView] Split (absorbed right): ${config.left} | ${config.right} (${layout})`);
+          }
         }
       } else {
-        // Cas D : aucun tab existant → créer split normal
-        try {
-          browser.loadURI(Services.io.newURI(config.left), {
-            triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-          });
-        } catch (e) {
-          console.warn('[BetterSplitView] Failed to navigate to left URL', e);
-        }
+        // Cas D : aucun tab solo existant
+        if (triggerIsPane) {
+          // Déclencheur = pane d'un split actif → split 100% frais via
+          // triggerSplit (2 tabs neufs), le split existant reste intact
+          await triggerSplit(config.left, config.right, layout, ratio);
+          gBrowser.removeTab(tab);
+        } else {
+          // Split normal : le tab déclencheur devient le pane gauche
+          try {
+            browser.loadURI(Services.io.newURI(config.left), {
+              triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+            });
+          } catch (e) {
+            console.warn('[BetterSplitView] Failed to navigate to left URL', e);
+          }
 
-        const tab2 = gBrowser.addTrustedTab(config.right);
-        await new Promise((r) => setTimeout(r, 600));
-        if (vs) {
-          vs.splitTabs([tab, tab2], layout);
-          setTimeout(() => applySplitRatio(tab, ratio), 100);
-          console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${layout})`);
+          const tab2 = gBrowser.addTrustedTab(config.right);
+          await new Promise((r) => setTimeout(r, 600));
+          if (vs) {
+            vs.splitTabs([tab, tab2], layout);
+            setTimeout(() => applySplitRatio(tab, ratio), 100);
+            console.log(`[BetterSplitView] Split: ${config.left} | ${config.right} (${layout})`);
+          }
         }
       }
     } catch (e) {
