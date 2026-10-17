@@ -23,6 +23,8 @@
   // ═══════════════════════════════════════════════════════════════════════
 
   const SVG_ICON = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><!--v2--></svg>`;
+  // Masque alpha (forme seule, couleur gérée par background CSS) — immunisé contre le refus de contexte sur data: (FX158)
+  const MASK_ICON = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><!--v3--></svg>`;
 
   let toolbarButton = null;
   let mainPanel = null;
@@ -255,15 +257,18 @@
                 color: #999;
                 font-size: 13px;
             }
-            /* Icône du bouton CustomizableUI — hérite de la couleur et taille du thème */
+            /* Icône du bouton CustomizableUI — mask alpha coloré par la var de thème (pas de context-stroke : refusé sur data: post-158) */
             #zensplit-creator-btn .toolbarbutton-icon {
-                width: auto !important;
-                height: auto !important;
-                -moz-context-properties: stroke !important;
-                stroke: var(--toolbarbutton-icon-fill, currentColor) !important;
+                width: 16px !important;
+                height: 16px !important;
+                background: var(--toolbarbutton-icon-fill, currentColor) !important;
+                mask-image: url('${MASK_ICON}') !important;
+                mask-size: contain !important;
+                mask-repeat: no-repeat !important;
+                mask-position: center !important;
             }
             #zensplit-creator-btn {
-                list-style-image: url('${SVG_ICON}');
+                list-style-image: none !important;
             }
         `;
     // En contexte XUL, document.head n'existe pas — utiliser documentElement
